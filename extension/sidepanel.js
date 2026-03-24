@@ -4,7 +4,7 @@
 // Constants
 // ---------------------------------------------------------------------------
 
-const API_URL = 'https://placeholder.lambda-url.us-east-1.on.aws/'; // Update after sam deploy
+const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/';
 
 // ---------------------------------------------------------------------------
 // State

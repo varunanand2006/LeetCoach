@@ -4,13 +4,9 @@ import boto3
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 
 
-def cors_headers():
+def response_headers():
     return {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Content-Type': 'text/event-stream',
-        'X-Accel-Buffering': 'no',
+        'Content-Type': 'text/plain',
     }
 
 
@@ -65,21 +61,13 @@ def build_messages(body):
 
 
 def handler(event, context):
-    # Handle CORS preflight
-    if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
-        return {
-            'statusCode': 200,
-            'headers': cors_headers(),
-            'body': '',
-        }
-
     try:
         body = json.loads(event.get('body', '{}'))
         messages = build_messages(body)
         system_prompt = build_system_prompt(body)
 
-        response = bedrock.invoke_model_with_response_stream(
-            modelId='anthropic.claude-sonnet-4-6',
+        response = bedrock.invoke_model(
+            modelId='us.anthropic.claude-sonnet-4-6',
             body=json.dumps({
                 'anthropic_version': 'bedrock-2023-05-31',
                 'max_tokens': 1024,
@@ -88,24 +76,19 @@ def handler(event, context):
             })
         )
 
-        def generate():
-            for event_chunk in response['body']:
-                chunk = json.loads(event_chunk['chunk']['bytes'])
-                if chunk.get('type') == 'content_block_delta':
-                    text = chunk.get('delta', {}).get('text', '')
-                    if text:
-                        yield text.encode('utf-8')
+        result = json.loads(response['body'].read())
+        text = result['content'][0]['text']
 
         return {
             'statusCode': 200,
-            'headers': cors_headers(),
-            'body': generate(),
+            'headers': response_headers(),
+            'body': text,
         }
 
     except Exception as e:
         print(f"Error: {e}")
         return {
             'statusCode': 500,
-            'headers': {**cors_headers(), 'Content-Type': 'application/json'},
+            'headers': {'Content-Type': 'application/json'},
             'body': json.dumps({'error': str(e)}),
         }
