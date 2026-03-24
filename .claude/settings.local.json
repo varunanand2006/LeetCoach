@@ -6,5 +6,10 @@
       "Read(//c/Users/varun/LeetCoach/**)",
       "Bash(done)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "aws-core",
+    "aws-lambda",
+    "aws-cloudwatch"
+  ]
 }

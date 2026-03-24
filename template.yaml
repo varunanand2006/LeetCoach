@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 256
+
+Resources:
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: lambda_function.handler
+      Policies:
+        - AmazonBedrockFullAccess
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowHeaders:
+            - 'Content-Type'
+          AllowMethods:
+            - 'POST'
+            - 'OPTIONS'
+
+Outputs:
+  ChatFunctionUrl:
+    Description: "Paste this URL into API_URL in extension/sidepanel.js"
+    Value: !GetAtt ChatFunctionUrl.FunctionUrl
