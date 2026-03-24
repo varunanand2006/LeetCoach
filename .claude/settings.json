@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const f=process.env.CLAUDE_TOOL_INPUT&&JSON.parse(process.env.CLAUDE_TOOL_INPUT);const p=f&&(f.path||f.file_path||'');if(p&&(p.includes('extension/')&&p.endsWith('.js')||p.includes('manifest.json'))){console.log('EXTENSION CHANGED: Go to chrome://extensions and click refresh on LeetCoach, then reload your LeetCode tab.');}\" "
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const f=process.env.CLAUDE_TOOL_INPUT&&JSON.parse(process.env.CLAUDE_TOOL_INPUT);const p=f&&(f.path||f.file_path||'');if(p&&(p.includes('lambda_function.py')||p.includes('template.yaml')||p.includes('requirements.txt'))){console.log('BACKEND CHANGED: Run sam build && sam deploy to push changes.');}\" "
+          },
+          {
+            "type": "command",
+            "command": "node -e \"const f=process.env.CLAUDE_TOOL_INPUT&&JSON.parse(process.env.CLAUDE_TOOL_INPUT);const p=f&&(f.path||f.file_path||'');if(p&&p.includes('manifest.json')){try{JSON.parse(require('fs').readFileSync(p,'utf8'));console.log('manifest.json is valid JSON');}catch(e){console.log('manifest.json has invalid JSON: '+e.message);}}\" "
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const f=process.env.CLAUDE_TOOL_INPUT&&JSON.parse(process.env.CLAUDE_TOOL_INPUT);const p=f&&(f.path||f.file_path||'');if(p&&(p.includes('.env')||p.includes('credentials')||p.toLowerCase().includes('secret'))){console.error('BLOCKED: Attempting to write to a sensitive file: '+p);process.exit(2);}\" "
+          }
+        ]
+      }
+    ]
+  }
+}

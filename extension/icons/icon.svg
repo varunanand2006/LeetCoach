@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1e2e"/>
+      <stop offset="100%" stop-color="#0d0d1a"/>
+    </linearGradient>
+    <linearGradient id="bracketGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFB340"/>
+      <stop offset="100%" stop-color="#FF8C00"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="128" height="128" rx="22" fill="url(#bg)"/>
+
+  <!-- Subtle inner glow border -->
+  <rect width="128" height="128" rx="22" fill="none" stroke="#FFA11620" stroke-width="2"/>
+
+  <!-- Left angle bracket < -->
+  <polyline
+    points="40,30 14,64 40,98"
+    fill="none"
+    stroke="url(#bracketGrad)"
+    stroke-width="13"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Right angle bracket > -->
+  <polyline
+    points="88,30 114,64 88,98"
+    fill="none"
+    stroke="url(#bracketGrad)"
+    stroke-width="13"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Forward slash -->
+  <line
+    x1="74" y1="26"
+    x2="54" y2="102"
+    stroke="#ffffff"
+    stroke-width="11"
+    stroke-linecap="round"
+    opacity="0.92"
+  />
+
+  <!-- 4-pointed sparkle star (top-right) — AI coaching indicator -->
+  <g transform="translate(101, 27)">
+    <!-- Vertical arm -->
+    <line x1="0" y1="-11" x2="0" y2="11" stroke="#FFA116" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- Horizontal arm -->
+    <line x1="-11" y1="0" x2="11" y2="0" stroke="#FFA116" stroke-width="3.5" stroke-linecap="round"/>
+    <!-- Diagonal arms (shorter) -->
+    <line x1="-6" y1="-6" x2="6" y2="6" stroke="#FFA116" stroke-width="2" stroke-linecap="round"/>
+    <line x1="6" y1="-6" x2="-6" y2="6" stroke="#FFA116" stroke-width="2" stroke-linecap="round"/>
+    <!-- Center dot -->
+    <circle cx="0" cy="0" r="2.5" fill="white"/>
+  </g>
+</svg>
