@@ -10,13 +10,13 @@ const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.o
 // State
 // ---------------------------------------------------------------------------
 
-/** Per-tab state: Map<tabId, { history: [], slug: string|null, domSnapshot: string }> */
+/** Per-tab state: Map<tabId, { history: [], slug: string|null, domSnapshot: string, hintLevel: number }> */
 const tabHistories = new Map();
 let activeTabId = null;
 
 function getTabState(tabId) {
   if (!tabHistories.has(tabId)) {
-    tabHistories.set(tabId, { history: [], slug: null, domSnapshot: '' });
+    tabHistories.set(tabId, { history: [], slug: null, domSnapshot: '', hintLevel: 1 });
   }
   return tabHistories.get(tabId);
 }
@@ -26,6 +26,7 @@ function getTabState(tabId) {
 // ---------------------------------------------------------------------------
 
 let chatEl, inputEl, sendEl, problemNameEl;
+let modeBtnHint, modeBtnAnalyze, modeBtnDsa, hintLevelBadgeEl;
 
 // ---------------------------------------------------------------------------
 // Initialisation
@@ -36,9 +37,17 @@ document.addEventListener('DOMContentLoaded', () => {
   inputEl         = document.getElementById('input');
   sendEl          = document.getElementById('send');
   problemNameEl   = document.getElementById('problem-name');
+  modeBtnHint     = document.getElementById('btn-hint');
+  modeBtnAnalyze  = document.getElementById('btn-analyze');
+  modeBtnDsa      = document.getElementById('btn-dsa');
+  hintLevelBadgeEl = document.getElementById('hint-level-badge');
 
   initPanel();
   setupNavigationDetection();
+
+  modeBtnHint.addEventListener('click', () => handleModeRequest('hint'));
+  modeBtnAnalyze.addEventListener('click', () => handleModeRequest('analyze'));
+  modeBtnDsa.addEventListener('click', () => handleModeRequest('dsa'));
 
   sendEl.addEventListener('click', () => {
     const text = inputEl.value;
@@ -117,8 +126,10 @@ function setupNavigationDetection() {
         state.slug = context.slug;
         state.history = [];
         state.domSnapshot = '';
+        state.hintLevel = 1;
         chatEl.innerHTML = '';
         updateHeader(context);
+        syncHintBadge();
       }
     } catch (_err) {
       // content.js not injected on this page — nothing to do
@@ -136,6 +147,7 @@ function setupNavigationDetection() {
     // Restore incoming tab DOM
     const state = getTabState(tabId);
     chatEl.innerHTML = state.domSnapshot;
+    syncHintBadge();
 
     // Refresh header
     try {
@@ -176,7 +188,7 @@ async function sendMessage(userText) {
   removeEmptyState();
   appendMessage('user', userText);
 
-  // Get fresh context
+  // Get fresh context including code
   let context = null;
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -200,6 +212,7 @@ async function sendMessage(userText) {
 
   // Build request body
   const body = {
+    mode:    'chat',
     message: userText,
     problem: {
       name:        context?.title       ?? null,
@@ -270,7 +283,9 @@ function clearChat() {
   const state = getTabState(activeTabId);
   state.history = [];
   state.domSnapshot = '';
+  state.hintLevel = 1;
   chatEl.innerHTML = '';
+  syncHintBadge();
   inputEl.focus();
 }
 
@@ -319,13 +334,110 @@ function scrollToBottom() {
 }
 
 function setInputEnabled(enabled) {
-  inputEl.disabled = !enabled;
-  sendEl.disabled  = !enabled;
+  inputEl.disabled        = !enabled;
+  sendEl.disabled         = !enabled;
+  modeBtnHint.disabled    = !enabled;
+  modeBtnAnalyze.disabled = !enabled;
+  modeBtnDsa.disabled     = !enabled;
+}
+
+function syncHintBadge() {
+  hintLevelBadgeEl.textContent = Math.min(getTabState(activeTabId)?.hintLevel ?? 1, 3);
 }
 
 function removeEmptyState() {
   const el = document.getElementById('empty-state');
   if (el) el.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Mode button requests
+// ---------------------------------------------------------------------------
+
+function buildModeBody(mode, context, hintLevel) {
+  const historySlice = getTabState(activeTabId).history.slice(-10);
+  const problem = {
+    name:        context?.title       ?? null,
+    number:      context?.number      ?? null,
+    difficulty:  context?.difficulty  ?? null,
+    tags:        context?.tags        ?? [],
+    description: context?.description ?? null,
+    slug:        context?.slug        ?? null,
+  };
+  const code     = context?.code     ?? '';
+  const language = context?.language ?? null;
+
+  if (mode === 'hint')    return { mode, problem, code, language, hintLevel };
+  if (mode === 'dsa')     return { mode, problem, code, language };
+  if (mode === 'analyze') return { mode, problem, code, language, history: historySlice, failureInfo: context?.failureInfo ?? null };
+  return { mode, problem, code, language, history: historySlice }; // chat
+}
+
+async function handleModeRequest(mode) {
+  setInputEnabled(false);
+  removeEmptyState();
+
+  let context = null;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab) {
+      const msgType = 'GET_CONTEXT';
+      context = await new Promise(resolve => chrome.tabs.sendMessage(tab.id, { type: msgType }, resolve));
+    }
+  } catch (_) {}
+
+  const labels = { hint: '[ Hint ]', analyze: '[ Analyze Code ]', dsa: '[ DSA Tips ]' };
+  appendMessage('user', labels[mode]);
+
+  const assistantBubble = createMessageBubble('assistant');
+  assistantBubble.innerHTML = '<i class="gg-spinner"></i>';
+  chatEl.appendChild(assistantBubble);
+  scrollToBottom();
+
+  const state = getTabState(activeTabId);
+  const hintLevel = state.hintLevel;
+  let assistantText = '';
+
+  try {
+    const response = await fetch(API_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(buildModeBody(mode, context, hintLevel)),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      assistantText += decoder.decode(value, { stream: true });
+      assistantBubble.innerHTML = renderMarkdown(assistantText);
+      scrollToBottom();
+    }
+    const tail = decoder.decode();
+    if (tail) {
+      assistantText += tail;
+      assistantBubble.innerHTML = renderMarkdown(assistantText);
+      scrollToBottom();
+    }
+
+    if (mode === 'hint' && hintLevel < 3) {
+      state.hintLevel++;
+      syncHintBadge();
+    }
+
+    state.history.push(
+      { role: 'user',      content: labels[mode]    },
+      { role: 'assistant', content: assistantText   },
+    );
+  } catch (_) {
+    assistantBubble.textContent = 'Error generating response. Please try again.';
+    scrollToBottom();
+  }
+
+  setInputEnabled(true);
+  inputEl.focus();
 }
 
 // ---------------------------------------------------------------------------

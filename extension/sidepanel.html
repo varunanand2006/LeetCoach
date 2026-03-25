@@ -226,6 +226,60 @@
     }
 
     /* -------------------------------------------------------------------------
+       Mode bar
+    ------------------------------------------------------------------------- */
+
+    #mode-bar {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      background: #111111;
+      border-top: 1px solid #2e2e2e;
+      flex-shrink: 0;
+    }
+
+    .mode-btn {
+      flex: 1;
+      background: #222222;
+      color: #e0e0e0;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 6px 4px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .mode-btn:hover:not(:disabled) {
+      background: #2e2e2e;
+      border-color: #ffa116;
+      color: #ffa116;
+    }
+
+    .mode-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    #hint-level-badge {
+      display: inline-block;
+      background: #ffa116;
+      color: #111111;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 50%;
+      width: 15px;
+      height: 15px;
+      line-height: 15px;
+      text-align: center;
+      margin-left: 3px;
+      vertical-align: middle;
+    }
+
+    /* -------------------------------------------------------------------------
        Input row
     ------------------------------------------------------------------------- */
 
@@ -349,6 +403,19 @@
     <!-- Chat area -->
     <div id="chat">
       <div id="empty-state">Open a LeetCode problem to start coaching</div>
+    </div>
+
+    <!-- Mode buttons -->
+    <div id="mode-bar">
+      <button id="btn-hint" class="mode-btn" title="Get a progressive hint">
+        Hint <span id="hint-level-badge">1</span>
+      </button>
+      <button id="btn-analyze" class="mode-btn" title="Analyze your current code">
+        Analyze
+      </button>
+      <button id="btn-dsa" class="mode-btn" title="Data structure &amp; algorithm tips">
+        DSA Tips
+      </button>
     </div>
 
     <!-- Input row -->
