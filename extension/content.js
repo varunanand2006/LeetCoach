@@ -7,6 +7,9 @@
 /** Stores the most recent wrong-answer failure info from a submission. */
 let failureInfo = null;
 
+/** Set to true once Monaco editor is confirmed available — skips retry on future calls. */
+let monacoInitialized = false;
+
 // ---------------------------------------------------------------------------
 // Problem context readers
 // ---------------------------------------------------------------------------
@@ -83,11 +86,18 @@ function getDescription() {
  */
 function getCodeWithRetry(maxRetries = 10, delayMs = 500) {
   return new Promise((resolve) => {
+    // If Monaco was already found in a previous call, skip the retry loop entirely
+    if (monacoInitialized) {
+      resolve(window.monaco?.editor?.getModels()[0]?.getValue() ?? '');
+      return;
+    }
+
     let attempts = 0;
 
     function attempt() {
       const code = window.monaco?.editor?.getModels()[0]?.getValue();
       if (code !== undefined) {
+        monacoInitialized = true;
         resolve(code);
         return;
       }
@@ -190,22 +200,25 @@ function watchSubmissionResults() {
 }
 
 // ---------------------------------------------------------------------------
-// Context collector
+// Context collectors
 // ---------------------------------------------------------------------------
+
+function collectBaseContext() {
+  return {
+    slug:        getSlug(),
+    title:       getTitle(),
+    number:      getNumber(),
+    difficulty:  getDifficulty(),
+    tags:        getTags(),
+    description: getDescription(),
+    language:    getLanguage(),
+    failureInfo,
+  };
+}
 
 async function collectContext() {
   const code = await getCodeWithRetry();
-  return {
-    slug: getSlug(),
-    title: getTitle(),
-    number: getNumber(),
-    difficulty: getDifficulty(),
-    tags: getTags(),
-    description: getDescription(),
-    code,
-    language: getLanguage(),
-    failureInfo,
-  };
+  return { ...collectBaseContext(), code };
 }
 
 // ---------------------------------------------------------------------------
@@ -217,6 +230,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     collectContext().then(sendResponse);
     return true; // keep the message channel open for the async response
   }
+  if (message.type === 'GET_BASE_CONTEXT') {
+    sendResponse(collectBaseContext());
+    // synchronous — no need to return true
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -224,3 +241,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 
 watchSubmissionResults();
+
+// Pre-warm Monaco detection so it's ready before the first GET_CONTEXT message arrives
+getCodeWithRetry();

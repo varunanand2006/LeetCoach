@@ -45,84 +45,18 @@
       border-bottom: 1px solid #2e2e2e;
       flex-shrink: 0;
       gap: 10px;
-    }
-
-    #header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    #title {
-      font-size: 15px;
-      font-weight: 700;
-      color: #ffa116;
-      letter-spacing: 0.3px;
-    }
-
-    #header-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
       min-width: 0;
-      flex: 1;
-      justify-content: flex-end;
     }
 
     #problem-name {
-      font-size: 12px;
-      color: #a0a0a0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #e0e0e0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 140px;
-    }
-
-    #difficulty-badge {
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 10px;
-      white-space: nowrap;
-      flex-shrink: 0;
-      display: none;
-    }
-
-    #difficulty-badge.easy {
-      background: rgba(44, 187, 93, 0.15);
-      color: #2cbb5d;
-      display: inline-block;
-    }
-
-    #difficulty-badge.medium {
-      background: rgba(255, 184, 0, 0.15);
-      color: #ffb800;
-      display: inline-block;
-    }
-
-    #difficulty-badge.hard {
-      background: rgba(239, 71, 67, 0.15);
-      color: #ef4743;
-      display: inline-block;
-    }
-
-    #clear-btn {
-      background: none;
-      border: none;
-      color: #666;
-      cursor: pointer;
-      font-size: 15px;
-      padding: 3px 5px;
-      border-radius: 4px;
-      line-height: 1;
-      flex-shrink: 0;
-      transition: color 0.15s ease;
-    }
-
-    #clear-btn:hover {
-      color: #aaa;
-      background: #2a2a2a;
+      flex: 1;
+      min-width: 0;
     }
 
     /* -------------------------------------------------------------------------
@@ -191,6 +125,104 @@
       color: #e0e0e0;
       border-bottom-left-radius: 3px;
       border: 1px solid #333;
+      white-space: normal;
+    }
+
+    .message.assistant p { margin-bottom: 8px; }
+    .message.assistant p:last-child { margin-bottom: 0; }
+
+    .message.assistant h3,
+    .message.assistant h4 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffa116;
+      margin: 10px 0 4px;
+    }
+    .message.assistant h3:first-child,
+    .message.assistant h4:first-child { margin-top: 0; }
+
+    .message.assistant pre {
+      background: #1a1a1a;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      padding: 10px 12px;
+      overflow-x: auto;
+      margin: 6px 0;
+    }
+
+    .message.assistant pre code {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      color: #d4d4d4;
+      background: none;
+      padding: 0;
+      border-radius: 0;
+    }
+
+    .message.assistant code {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      background: #1e1e1e;
+      color: #ce9178;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .message.assistant ul,
+    .message.assistant ol {
+      padding-left: 18px;
+      margin: 4px 0 8px;
+    }
+
+    .message.assistant li { margin-bottom: 3px; line-height: 1.5; }
+
+    .message.assistant hr {
+      border: none;
+      border-top: 1px solid #3a3a3a;
+      margin: 8px 0;
+    }
+
+    /* -------------------------------------------------------------------------
+       Spinner
+    ------------------------------------------------------------------------- */
+
+    .gg-spinner {
+      transform: scale(var(--ggs, 1));
+    }
+    .gg-spinner,
+    .gg-spinner::after,
+    .gg-spinner::before {
+      box-sizing: border-box;
+      position: relative;
+      display: block;
+      width: 20px;
+      height: 20px;
+    }
+    .gg-spinner::after,
+    .gg-spinner::before {
+      content: "";
+      position: absolute;
+      border-radius: 100px;
+    }
+    .gg-spinner::before {
+      animation: spinner 1s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+      border: 3px solid transparent;
+      border-top-color: currentColor;
+    }
+    .gg-spinner::after {
+      border: 3px solid;
+      opacity: 0.2;
+    }
+    @keyframes spinner {
+      0%  { transform: rotate(0deg); }
+      to  { transform: rotate(359deg); }
+    }
+
+    .message.assistant .gg-spinner::before {
+      border-color: #14213D #14213D #14213D #E5E5E5;
+    }
+    .message.assistant .gg-spinner::after {
+      opacity: 0;
     }
 
     /* -------------------------------------------------------------------------
@@ -252,17 +284,15 @@
 
     #send {
       background: #ffa116;
-      color: #111111;
       border: none;
-      border-radius: 8px;
-      padding: 9px 14px;
-      font-family: inherit;
-      font-size: 13px;
-      font-weight: 600;
+      border-radius: 6px;
+      padding: 6px;
       cursor: pointer;
       flex-shrink: 0;
-      transition: background 0.15s ease, opacity 0.15s ease;
-      line-height: 1.45;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.15s ease, background 0.15s ease;
     }
 
     #send:hover:not(:disabled) {
@@ -270,8 +300,41 @@
     }
 
     #send:disabled {
-      opacity: 0.4;
+      opacity: 0.3;
       cursor: not-allowed;
+    }
+
+    .gg-arrow-up-r {
+      box-sizing: border-box;
+      position: relative;
+      display: block;
+      width: 22px;
+      height: 22px;
+      border: 2px solid #000000;
+      transform: scale(var(--ggs, 1));
+      border-radius: 4px;
+    }
+    .gg-arrow-up-r::after,
+    .gg-arrow-up-r::before {
+      content: "";
+      display: block;
+      box-sizing: border-box;
+      position: absolute;
+      top: 4px;
+    }
+    .gg-arrow-up-r::after {
+      width: 6px;
+      height: 6px;
+      border-top: 2px solid #000000;
+      border-left: 2px solid #000000;
+      transform: rotate(45deg);
+      left: 6px;
+    }
+    .gg-arrow-up-r::before {
+      width: 2px;
+      height: 10px;
+      left: 8px;
+      background: #000000;
     }
   </style>
 </head>
@@ -280,14 +343,7 @@
 
     <!-- Header -->
     <div id="header">
-      <div id="header-left">
-        <span id="title">LeetCoach</span>
-      </div>
-      <div id="header-right">
-        <span id="problem-name"></span>
-        <span id="difficulty-badge"></span>
-        <button id="clear-btn" title="Clear chat">&#x1F5D1;</button>
-      </div>
+      <span id="problem-name"></span>
     </div>
 
     <!-- Chat area -->
@@ -302,7 +358,7 @@
         placeholder="Ask a question..."
         rows="1"
       ></textarea>
-      <button id="send">Send</button>
+      <button id="send"><i class="gg-arrow-up-r"></i></button>
     </div>
 
   </div>

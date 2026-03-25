@@ -1,5 +1,8 @@
 // background.js - side panel lifecycle only, no DOM access
 
+// Global default: panel disabled for all tabs unless explicitly enabled per-tab.
+chrome.sidePanel.setOptions({ path: 'sidepanel.html', enabled: false });
+
 chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
   if (!tab.url) return;
 
@@ -17,7 +20,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
 });
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
-  if (command === 'open-side-panel' && tab?.id) {
-    await chrome.sidePanel.open({ tabId: tab.id });
-  }
+  if (command !== 'open-side-panel' || !tab?.id) return;
+  if (!tab.url?.includes('leetcode.com/problems/')) return;
+  await chrome.sidePanel.open({ tabId: tab.id });
 });

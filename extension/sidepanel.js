@@ -10,17 +10,22 @@ const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.o
 // State
 // ---------------------------------------------------------------------------
 
-/** Array of { role: 'user'|'assistant', content: string } */
-let conversationHistory = [];
+/** Per-tab state: Map<tabId, { history: [], slug: string|null, domSnapshot: string }> */
+const tabHistories = new Map();
+let activeTabId = null;
 
-/** Slug of the current problem — used to detect navigation between problems */
-let currentSlug = null;
+function getTabState(tabId) {
+  if (!tabHistories.has(tabId)) {
+    tabHistories.set(tabId, { history: [], slug: null, domSnapshot: '' });
+  }
+  return tabHistories.get(tabId);
+}
 
 // ---------------------------------------------------------------------------
 // DOM references (set after DOMContentLoaded)
 // ---------------------------------------------------------------------------
 
-let chatEl, inputEl, sendEl, clearEl, problemNameEl, difficultyBadgeEl;
+let chatEl, inputEl, sendEl, problemNameEl;
 
 // ---------------------------------------------------------------------------
 // Initialisation
@@ -30,9 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   chatEl          = document.getElementById('chat');
   inputEl         = document.getElementById('input');
   sendEl          = document.getElementById('send');
-  clearEl         = document.getElementById('clear-btn');
   problemNameEl   = document.getElementById('problem-name');
-  difficultyBadgeEl = document.getElementById('difficulty-badge');
 
   initPanel();
   setupNavigationDetection();
@@ -56,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
     inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
   });
 
-  clearEl.addEventListener('click', () => clearChat());
 });
 
 // ---------------------------------------------------------------------------
@@ -65,11 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function initPanel() {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab) return;
+    activeTabId = tab.id;
 
     const context = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(tab.id, { type: 'GET_CONTEXT' }, resolve);
+      chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, resolve);
     });
 
     if (!context || !context.slug) {
@@ -77,7 +80,7 @@ async function initPanel() {
       return;
     }
 
-    currentSlug = context.slug;
+    getTabState(activeTabId).slug = context.slug;
     updateHeader(context);
     removeEmptyState();
   } catch (_err) {
@@ -95,7 +98,7 @@ function setupNavigationDetection() {
 
     // Only act on the currently active tab
     try {
-      const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (!activeTab || activeTab.id !== tabId) return;
     } catch (_err) {
       return;
@@ -108,15 +111,43 @@ function setupNavigationDetection() {
 
       if (!context || !context.slug) return;
 
-      if (context.slug !== currentSlug) {
+      const state = getTabState(activeTabId);
+      if (context.slug !== state.slug) {
         // User navigated to a different problem
-        currentSlug = context.slug;
-        conversationHistory = [];
+        state.slug = context.slug;
+        state.history = [];
+        state.domSnapshot = '';
         chatEl.innerHTML = '';
         updateHeader(context);
       }
     } catch (_err) {
       // content.js not injected on this page — nothing to do
+    }
+  });
+
+  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    // Snapshot outgoing tab DOM
+    if (activeTabId !== null && activeTabId !== tabId) {
+      getTabState(activeTabId).domSnapshot = chatEl.innerHTML;
+    }
+
+    activeTabId = tabId;
+
+    // Restore incoming tab DOM
+    const state = getTabState(tabId);
+    chatEl.innerHTML = state.domSnapshot;
+
+    // Refresh header
+    try {
+      const context = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tabId, { type: 'GET_BASE_CONTEXT' }, resolve);
+      });
+      if (context && context.slug) {
+        updateHeader(context);
+        if (state.domSnapshot === '') removeEmptyState();
+      }
+    } catch (_err) {
+      // Not a LeetCode page — panel is hidden anyway
     }
   });
 }
@@ -141,10 +172,14 @@ async function sendMessage(userText) {
   inputEl.value = '';
   inputEl.style.height = 'auto';
 
+  // Append user bubble immediately so it appears before any async work
+  removeEmptyState();
+  appendMessage('user', userText);
+
   // Get fresh context
   let context = null;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (tab) {
       context = await new Promise((resolve) => {
         chrome.tabs.sendMessage(tab.id, { type: 'GET_CONTEXT' }, resolve);
@@ -154,17 +189,14 @@ async function sendMessage(userText) {
     // content.js unavailable — proceed with null context
   }
 
-  // Append user bubble
-  removeEmptyState();
-  appendMessage('user', userText);
-
   // Create assistant bubble early so text streams in
   const assistantBubble = createMessageBubble('assistant');
+  assistantBubble.innerHTML = '<i class="gg-spinner"></i>';
   chatEl.appendChild(assistantBubble);
   scrollToBottom();
 
   // Trim history before sending
-  const historySlice = conversationHistory.slice(-10);
+  const historySlice = getTabState(activeTabId).history.slice(-10);
 
   // Build request body
   const body = {
@@ -204,7 +236,7 @@ async function sendMessage(userText) {
       if (done) break;
       const chunk = decoder.decode(value, { stream: true });
       assistantText += chunk;
-      assistantBubble.textContent = assistantText;
+      assistantBubble.innerHTML = renderMarkdown(assistantText);
       scrollToBottom();
     }
 
@@ -212,12 +244,12 @@ async function sendMessage(userText) {
     const tail = decoder.decode();
     if (tail) {
       assistantText += tail;
-      assistantBubble.textContent = assistantText;
+      assistantBubble.innerHTML = renderMarkdown(assistantText);
       scrollToBottom();
     }
 
     // Commit both turns to history
-    conversationHistory.push(
+    getTabState(activeTabId).history.push(
       { role: 'user',      content: userText      },
       { role: 'assistant', content: assistantText },
     );
@@ -235,7 +267,9 @@ async function sendMessage(userText) {
 // ---------------------------------------------------------------------------
 
 function clearChat() {
-  conversationHistory = [];
+  const state = getTabState(activeTabId);
+  state.history = [];
+  state.domSnapshot = '';
   chatEl.innerHTML = '';
   inputEl.focus();
 }
@@ -271,20 +305,9 @@ function createMessageBubble(role) {
 // ---------------------------------------------------------------------------
 
 function updateHeader(context) {
-  const name = context?.title ?? '';
-  problemNameEl.textContent = name;
-
-  const difficulty = (context?.difficulty ?? '').trim();
-  const key = difficulty.toLowerCase(); // 'easy' | 'medium' | 'hard'
-
-  difficultyBadgeEl.textContent = difficulty;
-  difficultyBadgeEl.className   = ''; // reset classes
-  if (key === 'easy' || key === 'medium' || key === 'hard') {
-    difficultyBadgeEl.classList.add(key);
-  } else {
-    // Unknown difficulty — hide badge
-    difficultyBadgeEl.style.display = 'none';
-  }
+  const number = context?.number ?? '';
+  const name   = context?.title  ?? '';
+  problemNameEl.textContent = number ? `${number}. ${name}` : name;
 }
 
 // ---------------------------------------------------------------------------
@@ -303,4 +326,75 @@ function setInputEnabled(enabled) {
 function removeEmptyState() {
   const el = document.getElementById('empty-state');
   if (el) el.remove();
+}
+
+// ---------------------------------------------------------------------------
+// Markdown renderer
+// ---------------------------------------------------------------------------
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderMarkdown(raw) {
+  // Stash fenced code blocks
+  const blocks = [];
+  let text = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
+    blocks.push(`<pre><code>${escapeHtml(code.trim())}</code></pre>`);
+    return `\x02B${blocks.length - 1}\x03`;
+  });
+
+  // Stash inline code
+  const inlines = [];
+  text = text.replace(/`([^`\n]+)`/g, (_, code) => {
+    inlines.push(`<code>${escapeHtml(code)}</code>`);
+    return `\x02I${inlines.length - 1}\x03`;
+  });
+
+  // Escape remaining HTML
+  text = escapeHtml(text);
+
+  // Bold and italic
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+
+  // Process line by line
+  const lines = text.split('\n');
+  const out = [];
+  let listType = null;
+
+  const closeList = () => {
+    if (listType) { out.push(`</${listType}>`); listType = null; }
+  };
+
+  for (const line of lines) {
+    if (/^#{1,3} /.test(line)) {
+      closeList();
+      out.push(`<h4>${line.replace(/^#+\s+/, '')}</h4>`);
+    } else if (/^---+$/.test(line)) {
+      closeList();
+      out.push('<hr>');
+    } else if (/^[*-] /.test(line)) {
+      if (listType !== 'ul') { closeList(); out.push('<ul>'); listType = 'ul'; }
+      out.push(`<li>${line.slice(2)}</li>`);
+    } else if (/^\d+\. /.test(line)) {
+      if (listType !== 'ol') { closeList(); out.push('<ol>'); listType = 'ol'; }
+      out.push(`<li>${line.replace(/^\d+\.\s+/, '')}</li>`);
+    } else if (line.trim() === '') {
+      closeList();
+    } else {
+      closeList();
+      out.push(`<p>${line}</p>`);
+    }
+  }
+  closeList();
+
+  text = out.join('');
+  text = text.replace(/\x02I(\d+)\x03/g, (_, i) => inlines[i]);
+  text = text.replace(/\x02B(\d+)\x03/g, (_, i) => blocks[i]);
+  return text;
 }
