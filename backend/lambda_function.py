@@ -26,6 +26,40 @@ def build_prompt_for_mode(mode, body):
 
 
 # ---------------------------------------------------------------------------
+# Submission result formatter
+# ---------------------------------------------------------------------------
+
+def format_submission_result(result):
+    """Return a prompt snippet describing the last submission result, or empty string."""
+    if not result:
+        return ''
+    status = result.get('status', '')
+    if status == 'Wrong Answer':
+        return (
+            f"\nLast submission: Wrong Answer\n"
+            f"- Input:    {result.get('input') or '(not captured)'}\n"
+            f"- Expected: {result.get('expected') or '(not captured)'}\n"
+            f"- Actual:   {result.get('actual') or '(not captured)'}\n"
+        )
+    if status == 'Runtime Error':
+        msg = result.get('message') or '(no message captured)'
+        return f"\nLast submission: Runtime Error\n- Error: {msg}\n"
+    if status == 'Compile Error':
+        msg = result.get('message') or '(no message captured)'
+        return f"\nLast submission: Compile Error\n- Error: {msg}\n"
+    if status == 'Time Limit Exceeded':
+        snippet = f"\nLast submission: Time Limit Exceeded — solution is too slow.\n"
+        if result.get('input'):
+            snippet += f"- Failing input: {result['input']}\n"
+        return snippet
+    if status == 'Memory Limit Exceeded':
+        return "\nLast submission: Memory Limit Exceeded — solution uses too much memory.\n"
+    if status == 'Output Limit Exceeded':
+        return "\nLast submission: Output Limit Exceeded — possible infinite loop producing output.\n"
+    return f"\nLast submission: {status}\n"
+
+
+# ---------------------------------------------------------------------------
 # Per-mode system prompts
 # ---------------------------------------------------------------------------
 
@@ -34,6 +68,7 @@ def build_hint_prompt(body):
     code = body.get('code', '')
     language = body.get('language', 'Python')
     hint_level = body.get('hintLevel', 1)
+    submission_snippet = format_submission_result(body.get('submissionResult'))
 
     level_instructions = {
         1: (
@@ -65,7 +100,7 @@ User's current code ({language}):
 ```
 {code}
 ```
-
+{submission_snippet}
 Hint level requested: {hint_level} of 3
 
 Your task: {instruction}
@@ -82,7 +117,7 @@ def build_analyze_prompt(body):
     problem = body.get('problem', {})
     code = body.get('code', '')
     language = body.get('language', 'Python')
-    failure = body.get('failureInfo', None)
+    submission_snippet = format_submission_result(body.get('submissionResult'))
 
     prompt = f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
@@ -97,19 +132,9 @@ User's current code ({language}):
 ```
 {code}
 ```
-"""
-
-    if failure:
-        prompt += f"""
-Last submission result: Wrong Answer
-- Input:    {failure.get('input', '')}
-- Expected: {failure.get('expected', '')}
-- Actual:   {failure.get('actual', '')}
-"""
-
-    prompt += """
+{submission_snippet}
 Your task: Analyze the code. Use short bullet points:
-- **Correctness:** is the logic right? If wrong answer, diagnose why in one line.
+- **Correctness:** is the logic right? If there's a submission failure, diagnose why in one line.
 - **Complexity:** Big-O time and space. Is it optimal?
 - **Edge cases:** any obvious gaps (1-2 max).
 - **Style:** one line if anything notable.
@@ -123,6 +148,7 @@ def build_dsa_prompt(body):
     problem = body.get('problem', {})
     code = body.get('code', '')
     language = body.get('language', 'Python')
+    submission_snippet = format_submission_result(body.get('submissionResult'))
 
     return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
@@ -137,7 +163,7 @@ User's current code ({language}):
 ```
 {code}
 ```
-
+{submission_snippet}
 Your task: In 3-4 lines total, state: the algorithmic pattern, the specific data structure variant to use, and the optimal time/space complexity. If the user already has an approach, note whether it's on the right track. No code, no explanation of how to implement — just the tools and why. Bold the algorithm pattern and data structure names (e.g., **sliding window**, **monotonic deque**).
 """
 
@@ -146,7 +172,7 @@ def build_chat_prompt(body):
     problem = body.get('problem', {})
     code = body.get('code', '')
     language = body.get('language', 'Python')
-    failure = body.get('failureInfo', None)
+    submission_snippet = format_submission_result(body.get('submissionResult'))
 
     prompt = f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
@@ -161,17 +187,7 @@ User's current code ({language}):
 ```
 {code}
 ```
-"""
-
-    if failure:
-        prompt += f"""
-Last submission result: Wrong Answer
-- Input:    {failure.get('input', '')}
-- Expected: {failure.get('expected', '')}
-- Actual:   {failure.get('actual', '')}
-"""
-
-    prompt += """
+{submission_snippet}
 Rules:
 - Answer directly. 1-3 sentences for syntax questions, short paragraphs for approach questions.
 - Recommend specific DS/algorithm variants for this problem, not generic advice.

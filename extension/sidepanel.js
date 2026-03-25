@@ -44,6 +44,7 @@ const tabHistories = new Map();
 let activeTabId = null;
 
 function getTabState(tabId) {
+  if (!tabId) return { history: [], slug: null, domSnapshot: null, hintLevel: 1 };
   if (!tabHistories.has(tabId)) {
     tabHistories.set(tabId, { history: [], slug: null, domSnapshot: null, hintLevel: 1 });
   }
@@ -141,12 +142,15 @@ function setupNavigationDetection() {
 
     try {
       const context = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tabId, { type: 'GET_CONTEXT' }, resolve);
+        chrome.tabs.sendMessage(tabId, { type: 'GET_CONTEXT' }, (res) => {
+          if (chrome.runtime.lastError) { /* content.js not injected — ignore */ }
+          resolve(res ?? null);
+        });
       });
 
       if (!context || !context.slug) return;
 
-      const state = getTabState(activeTabId);
+      const state = getTabState(tabId);
       if (context.slug !== state.slug) {
         // User navigated to a different problem
         state.slug = context.slug;
@@ -181,7 +185,10 @@ function setupNavigationDetection() {
     // Refresh header
     try {
       const context = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tabId, { type: 'GET_BASE_CONTEXT' }, resolve);
+        chrome.tabs.sendMessage(tabId, { type: 'GET_BASE_CONTEXT' }, (res) => {
+          if (chrome.runtime.lastError) { /* content.js not injected — ignore */ }
+          resolve(res ?? null);
+        });
       });
       if (context && context.slug) {
         updateHeader(context);
@@ -215,61 +222,84 @@ async function getMonacoCode(tabId) {
   }
 }
 
-async function getFailureInfo(tabId) {
+async function getSubmissionResult(tabId) {
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
       func: () => {
-        // 1. Find an element whose text is exactly "Wrong Answer".
-        //    Try the stable data attribute first, then fall back to a full-DOM text search
-        //    (LeetCode often strips data-e2e-locator from production builds).
+        const TERMINAL = [
+          'Wrong Answer', 'Runtime Error', 'Time Limit Exceeded',
+          'Memory Limit Exceeded', 'Compile Error', 'Output Limit Exceeded',
+        ];
+
+        // Find the result element — try stable attribute first, then text search
         let resultEl = document.querySelector('[data-e2e-locator="submission-result"]');
-        if (!resultEl?.innerText?.includes('Wrong Answer')) {
+        if (!resultEl || !TERMINAL.includes(resultEl.innerText?.trim())) {
           resultEl = null;
           for (const el of document.querySelectorAll('span, div, p, h4, h5')) {
-            if (el.innerText?.trim() === 'Wrong Answer') {
+            if (el.children.length <= 1 && TERMINAL.includes(el.innerText?.trim())) {
               resultEl = el;
               break;
             }
           }
         }
-
         if (!resultEl) return null;
 
-        // 2. Walk up the tree until we find a container that holds the detail sections
-        //    (input / expected / actual).  Stop after 15 levels or when we have enough text.
+        const status = resultEl.innerText.trim();
+
+        // Walk up to find a container with the relevant detail sections
         let container = resultEl.parentElement;
         for (let i = 0; i < 15 && container; i++) {
           const t = container.innerText ?? '';
-          if ((t.includes('Input') || t.includes('input')) &&
-              (t.includes('Expected') || t.includes('Output'))) break;
+          if (t.includes('Input') || t.includes('Error') || t.length > 150) break;
           container = container.parentElement;
         }
         const containerEl = container ?? resultEl;
 
-        // 3. Scan children for labelled sections — try several label variants
-        const details = { input: null, expected: null, actual: null };
-        for (const el of containerEl.querySelectorAll('*')) {
-          if (el.children.length > 3) continue;
-          const text = el.innerText?.trim();
-          if (!text) continue;
-
-          if (text === 'Input') {
-            details.input = el.nextElementSibling?.innerText?.trim() ?? null;
-          } else if (text === 'Expected Output' || text === 'Expected' || text === 'Expected:') {
-            details.expected = el.nextElementSibling?.innerText?.trim() ?? null;
-          } else if (text === 'Output' || text === 'Stdout' || text === 'Actual Output' || text === 'Your Output') {
-            details.actual = el.nextElementSibling?.innerText?.trim() ?? null;
+        if (status === 'Wrong Answer') {
+          const details = { input: null, expected: null, actual: null };
+          for (const el of containerEl.querySelectorAll('*')) {
+            if (el.children.length > 3) continue;
+            const text = el.innerText?.trim();
+            if (!text) continue;
+            if (text === 'Input') {
+              details.input = el.nextElementSibling?.innerText?.trim() ?? null;
+            } else if (text === 'Expected Output' || text === 'Expected' || text === 'Expected:') {
+              details.expected = el.nextElementSibling?.innerText?.trim() ?? null;
+            } else if (text === 'Output' || text === 'Stdout' || text === 'Actual Output' || text === 'Your Output') {
+              details.actual = el.nextElementSibling?.innerText?.trim() ?? null;
+            }
           }
+          return { status, ...details };
         }
 
-        return { status: 'Wrong Answer', ...details };
+        if (status === 'Runtime Error' || status === 'Compile Error') {
+          const errorEl =
+            containerEl.querySelector('pre') ??
+            containerEl.querySelector('code') ??
+            containerEl.querySelector('[class*="error"]');
+          return { status, message: errorEl?.innerText?.trim() ?? null };
+        }
+
+        if (status === 'Time Limit Exceeded' || status === 'Memory Limit Exceeded' || status === 'Output Limit Exceeded') {
+          let input = null;
+          for (const el of containerEl.querySelectorAll('*')) {
+            if (el.children.length > 3) continue;
+            if (el.innerText?.trim() === 'Input') {
+              input = el.nextElementSibling?.innerText?.trim() ?? null;
+              break;
+            }
+          }
+          return { status, input };
+        }
+
+        return { status };
       },
     });
     return results?.[0]?.result ?? null;
   } catch (err) {
-    console.log('[LeetCoach] getFailureInfo error:', err);
+    console.log('[LeetCoach] getSubmissionResult error:', err);
     return null;
   }
 }
@@ -317,12 +347,12 @@ async function sendMessage(userText) {
   // Always attempt to read Monaco code and failure info directly — independent of content.js
   if (activeTab) {
     const code = await getMonacoCode(activeTab.id);
-    const failureInfo = await getFailureInfo(activeTab.id);
+    const submissionResult = await getSubmissionResult(activeTab.id);
     if (context) {
       context.code = code;
-      context.failureInfo = failureInfo;
+      context.submissionResult = submissionResult;
     } else {
-      context = { code, failureInfo };
+      context = { code, submissionResult };
     }
   }
 
@@ -350,7 +380,7 @@ async function sendMessage(userText) {
     code:        context?.code        ?? '',
     language:    context?.language    ?? null,
     history:     historySlice,
-    failureInfo: context?.failureInfo  ?? null,
+    submissionResult: context?.submissionResult ?? null,
   };
 
   // Fetch and stream the response
@@ -491,10 +521,11 @@ function buildModeBody(mode, context, hintLevel) {
   const code     = context?.code     ?? '';
   const language = context?.language ?? null;
 
-  if (mode === 'hint')    return { mode, problem, code, language, hintLevel };
-  if (mode === 'dsa')     return { mode, problem, code, language };
-  if (mode === 'analyze') return { mode, problem, code, language, history: historySlice, failureInfo: context?.failureInfo ?? null };
-  return { mode, problem, code, language, history: historySlice }; // chat
+  const submissionResult = context?.submissionResult ?? null;
+  if (mode === 'hint')    return { mode, problem, code, language, hintLevel, submissionResult };
+  if (mode === 'dsa')     return { mode, problem, code, language, submissionResult };
+  if (mode === 'analyze') return { mode, problem, code, language, history: historySlice, submissionResult };
+  return { mode, problem, code, language, history: historySlice, submissionResult }; // chat
 }
 
 async function handleModeRequest(mode) {
@@ -517,12 +548,12 @@ async function handleModeRequest(mode) {
   // Always attempt to read Monaco code and failure info directly — independent of content.js
   if (activeTab) {
     const code = await getMonacoCode(activeTab.id);
-    const failureInfo = await getFailureInfo(activeTab.id);
+    const submissionResult = await getSubmissionResult(activeTab.id);
     if (context) {
       context.code = code;
-      context.failureInfo = failureInfo;
+      context.submissionResult = submissionResult;
     } else {
-      context = { code, failureInfo };
+      context = { code, submissionResult };
     }
   }
 
