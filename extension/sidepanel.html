@@ -66,7 +66,7 @@
     #chat {
       flex: 1;
       overflow-y: auto;
-      padding: 14px 12px;
+      padding: 10px 8px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -232,10 +232,6 @@
     #mode-bar {
       display: flex;
       gap: 6px;
-      padding: 8px 12px;
-      background: #111111;
-      border-top: 1px solid #2e2e2e;
-      flex-shrink: 0;
     }
 
     .mode-btn {
@@ -289,9 +285,9 @@
 
     #input-row {
       display: flex;
-      align-items: flex-end;
+      flex-direction: column;
       gap: 8px;
-      padding: 10px 12px;
+      padding: 8px 10px;
       background: #111111;
       border-top: 1px solid #2e2e2e;
       flex-shrink: 0;
@@ -340,29 +336,7 @@
       cursor: not-allowed;
     }
 
-    #send {
-      background: #ffa116;
-      border: none;
-      border-radius: 6px;
-      padding: 6px;
-      cursor: pointer;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: opacity 0.15s ease, background 0.15s ease;
-    }
-
-    #send:hover:not(:disabled) {
-      background: #e8920f;
-    }
-
-    #send:disabled {
-      opacity: 0.3;
-      cursor: not-allowed;
-    }
-
-    /* -------------------------------------------------------------------------
+/* -------------------------------------------------------------------------
        Mode button icons
     ------------------------------------------------------------------------- */
 
@@ -468,6 +442,25 @@
       bottom: 0;
     }
 
+    /* -------------------------------------------------------------------------
+       Prism theme overrides — match sidebar dark theme
+    ------------------------------------------------------------------------- */
+
+    pre[class*="language-"],
+    code[class*="language-"] {
+      background: #1a1a1a !important;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    pre[class*="language-"] {
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin: 6px 0;
+      overflow-x: auto;
+    }
+
     .gg-arrow-up-r {
       box-sizing: border-box;
       position: relative;
@@ -515,31 +508,30 @@
       <div id="empty-state">Open a LeetCode problem to start coaching</div>
     </div>
 
-    <!-- Mode buttons -->
-    <div id="mode-bar">
-      <button id="btn-hint" class="mode-btn" title="Get a progressive hint">
-        <i class="gg-key"></i> Hint <span id="hint-level-badge">1</span>
-      </button>
-      <button id="btn-analyze" class="mode-btn" title="Analyze your current code">
-        <i class="gg-play-list-search"></i> Analyze
-      </button>
-      <button id="btn-dsa" class="mode-btn" title="Data structure &amp; algorithm tips">
-        <i class="gg-list-tree"></i> DSA Tips
-      </button>
-    </div>
-
     <!-- Input row -->
     <div id="input-row">
+      <div id="mode-bar">
+        <button id="btn-hint" class="mode-btn" title="Get a progressive hint">
+          <i class="gg-key"></i> Hint <span id="hint-level-badge">1</span>
+        </button>
+        <button id="btn-analyze" class="mode-btn" title="Analyze your current code">
+          <i class="gg-play-list-search"></i> Analyze
+        </button>
+        <button id="btn-dsa" class="mode-btn" title="Data structure &amp; algorithm tips">
+          <i class="gg-list-tree"></i> DSA Tips
+        </button>
+      </div>
       <textarea
         id="input"
-        placeholder="Ask a question..."
+        placeholder="Ask LeetCoach..."
         rows="1"
       ></textarea>
-      <button id="send"><i class="gg-arrow-up-r"></i></button>
     </div>
 
   </div>
 
+  <link rel="stylesheet" href="prism-theme.css">
+  <script src="prism.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

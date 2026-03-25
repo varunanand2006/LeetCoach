@@ -6,17 +6,46 @@
 
 const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/';
 
+const LANG_MAP = {
+  // Python
+  'python': 'python', 'python3': 'python',
+  // JavaScript / TypeScript
+  'javascript': 'javascript', 'js': 'javascript',
+  'typescript': 'typescript', 'ts': 'typescript',
+  // C family
+  'cpp': 'cpp', 'c++': 'cpp',
+  'c': 'c',
+  'csharp': 'csharp', 'c#': 'csharp',
+  // JVM
+  'java': 'java',
+  'kotlin': 'kotlin',
+  'scala': 'scala',
+  // Systems
+  'go': 'go', 'golang': 'go',
+  'rust': 'rust',
+  'swift': 'swift',
+  // Scripting
+  'ruby': 'ruby',
+  'php': 'php',
+  'bash': 'bash', 'shell': 'bash',
+  // Other LeetCode languages
+  'dart': 'dart',
+  'erlang': 'erlang',
+  'elixir': 'elixir',
+  'racket': 'scheme',
+};
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
-/** Per-tab state: Map<tabId, { history: [], slug: string|null, domSnapshot: string, hintLevel: number }> */
+/** Per-tab state: Map<tabId, { history: [], slug: string|null, domSnapshot: DocumentFragment|null, hintLevel: number }> */
 const tabHistories = new Map();
 let activeTabId = null;
 
 function getTabState(tabId) {
   if (!tabHistories.has(tabId)) {
-    tabHistories.set(tabId, { history: [], slug: null, domSnapshot: '', hintLevel: 1 });
+    tabHistories.set(tabId, { history: [], slug: null, domSnapshot: null, hintLevel: 1 });
   }
   return tabHistories.get(tabId);
 }
@@ -25,7 +54,7 @@ function getTabState(tabId) {
 // DOM references (set after DOMContentLoaded)
 // ---------------------------------------------------------------------------
 
-let chatEl, inputEl, sendEl, problemNameEl;
+let chatEl, inputEl, problemNameEl;
 let modeBtnHint, modeBtnAnalyze, modeBtnDsa, hintLevelBadgeEl;
 
 // ---------------------------------------------------------------------------
@@ -35,7 +64,6 @@ let modeBtnHint, modeBtnAnalyze, modeBtnDsa, hintLevelBadgeEl;
 document.addEventListener('DOMContentLoaded', () => {
   chatEl          = document.getElementById('chat');
   inputEl         = document.getElementById('input');
-  sendEl          = document.getElementById('send');
   problemNameEl   = document.getElementById('problem-name');
   modeBtnHint     = document.getElementById('btn-hint');
   modeBtnAnalyze  = document.getElementById('btn-analyze');
@@ -48,11 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
   modeBtnHint.addEventListener('click', () => handleModeRequest('hint'));
   modeBtnAnalyze.addEventListener('click', () => handleModeRequest('analyze'));
   modeBtnDsa.addEventListener('click', () => handleModeRequest('dsa'));
-
-  sendEl.addEventListener('click', () => {
-    const text = inputEl.value;
-    sendMessage(text);
-  });
 
   inputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -81,7 +104,10 @@ async function initPanel() {
     activeTabId = tab.id;
 
     const context = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, resolve);
+      chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
+        if (chrome.runtime.lastError) { /* content.js not ready yet */ }
+        resolve(res ?? null);
+      });
     });
 
     if (!context || !context.slug) {
@@ -125,7 +151,7 @@ function setupNavigationDetection() {
         // User navigated to a different problem
         state.slug = context.slug;
         state.history = [];
-        state.domSnapshot = '';
+        state.domSnapshot = null;
         state.hintLevel = 1;
         chatEl.innerHTML = '';
         updateHeader(context);
@@ -137,16 +163,19 @@ function setupNavigationDetection() {
   });
 
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-    // Snapshot outgoing tab DOM
+    // Snapshot outgoing tab DOM — move nodes into a fragment (no serialization)
     if (activeTabId !== null && activeTabId !== tabId) {
-      getTabState(activeTabId).domSnapshot = chatEl.innerHTML;
+      const frag = document.createDocumentFragment();
+      while (chatEl.firstChild) frag.appendChild(chatEl.firstChild);
+      getTabState(activeTabId).domSnapshot = frag;
     }
 
     activeTabId = tabId;
 
     // Restore incoming tab DOM
     const state = getTabState(tabId);
-    chatEl.innerHTML = state.domSnapshot;
+    while (chatEl.firstChild) chatEl.removeChild(chatEl.firstChild);
+    if (state.domSnapshot) chatEl.appendChild(state.domSnapshot);
     syncHintBadge();
 
     // Refresh header
@@ -156,12 +185,74 @@ function setupNavigationDetection() {
       });
       if (context && context.slug) {
         updateHeader(context);
-        if (state.domSnapshot === '') removeEmptyState();
+        if (!state.domSnapshot) removeEmptyState();
       }
     } catch (_err) {
       // Not a LeetCode page — panel is hidden anyway
     }
   });
+}
+
+// ---------------------------------------------------------------------------
+// MAIN world readers (must run via executeScript to access page JS / full DOM)
+// ---------------------------------------------------------------------------
+
+async function getMonacoCode(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const models = window.monaco?.editor?.getModels() ?? [];
+        const editors = window.monaco?.editor?.getEditors() ?? [];
+        return models[0]?.getValue() ?? editors[0]?.getValue() ?? '';
+      },
+    });
+    return results?.[0]?.result ?? '';
+  } catch (err) {
+    console.log('[LeetCoach] getMonacoCode error:', err);
+    return '';
+  }
+}
+
+async function getFailureInfo(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const resultEl = document.querySelector('[data-e2e-locator="submission-result"]');
+        if (!resultEl) return null;
+        const statusText = resultEl.innerText?.trim() ?? '';
+        if (!statusText.includes('Wrong Answer')) return null;
+
+        const container =
+          resultEl.closest('[class*="result-container"]') ??
+          resultEl.closest('[class*="result"]') ??
+          resultEl.parentElement;
+        const containerEl = container ?? resultEl;
+
+        const details = { input: null, expected: null, actual: null };
+        for (const el of containerEl.querySelectorAll('*')) {
+          if (el.children.length > 2) continue;
+          const text = el.innerText?.trim();
+          if (!text) continue;
+          if (text === 'Input') {
+            details.input = el.nextElementSibling?.innerText?.trim() ?? null;
+          } else if (text === 'Expected Output' || text === 'Expected') {
+            details.expected = el.nextElementSibling?.innerText?.trim() ?? null;
+          } else if (text === 'Output' || text === 'Stdout') {
+            details.actual = el.nextElementSibling?.innerText?.trim() ?? null;
+          }
+        }
+        return { status: 'Wrong Answer', ...details };
+      },
+    });
+    return results?.[0]?.result ?? null;
+  } catch (err) {
+    console.log('[LeetCoach] getFailureInfo error:', err);
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -188,17 +279,32 @@ async function sendMessage(userText) {
   removeEmptyState();
   appendMessage('user', userText);
 
-  // Get fresh context including code
+  // Get fresh context — base context from content.js, code via scripting (MAIN world)
   let context = null;
+  let activeTab = null;
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    activeTab = tab ?? null;
     if (tab) {
       context = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tab.id, { type: 'GET_CONTEXT' }, resolve);
+        chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
+          if (chrome.runtime.lastError) { /* content.js not ready — that's ok */ }
+          resolve(res ?? null);
+        });
       });
     }
-  } catch (_err) {
-    // content.js unavailable — proceed with null context
+  } catch (_err) { /* ignore */ }
+
+  // Always attempt to read Monaco code and failure info directly — independent of content.js
+  if (activeTab) {
+    const code = await getMonacoCode(activeTab.id);
+    const failureInfo = await getFailureInfo(activeTab.id);
+    if (context) {
+      context.code = code;
+      context.failureInfo = failureInfo;
+    } else {
+      context = { code, failureInfo };
+    }
   }
 
   // Create assistant bubble early so text streams in
@@ -282,7 +388,7 @@ async function sendMessage(userText) {
 function clearChat() {
   const state = getTabState(activeTabId);
   state.history = [];
-  state.domSnapshot = '';
+  state.domSnapshot = null;
   state.hintLevel = 1;
   chatEl.innerHTML = '';
   syncHintBadge();
@@ -335,7 +441,6 @@ function scrollToBottom() {
 
 function setInputEnabled(enabled) {
   inputEl.disabled        = !enabled;
-  sendEl.disabled         = !enabled;
   modeBtnHint.disabled    = !enabled;
   modeBtnAnalyze.disabled = !enabled;
   modeBtnDsa.disabled     = !enabled;
@@ -378,13 +483,29 @@ async function handleModeRequest(mode) {
   removeEmptyState();
 
   let context = null;
+  let activeTab = null;
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    activeTab = tab ?? null;
     if (tab) {
-      const msgType = 'GET_CONTEXT';
-      context = await new Promise(resolve => chrome.tabs.sendMessage(tab.id, { type: msgType }, resolve));
+      context = await new Promise(resolve => chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
+        if (chrome.runtime.lastError) { /* content.js not ready — that's ok */ }
+        resolve(res ?? null);
+      }));
     }
   } catch (_) {}
+
+  // Always attempt to read Monaco code and failure info directly — independent of content.js
+  if (activeTab) {
+    const code = await getMonacoCode(activeTab.id);
+    const failureInfo = await getFailureInfo(activeTab.id);
+    if (context) {
+      context.code = code;
+      context.failureInfo = failureInfo;
+    } else {
+      context = { code, failureInfo };
+    }
+  }
 
   const labels = { hint: '[ Hint ]', analyze: '[ Analyze Code ]', dsa: '[ DSA Tips ]' };
   appendMessage('user', labels[mode]);
@@ -456,8 +577,14 @@ function renderMarkdown(raw) {
   // Stash fenced code blocks
   const blocks = [];
   let text = raw.replace(/```([\w]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const trimmed = code.trim();
+    const prismLang = LANG_MAP[lang.toLowerCase()] || lang;
+    const grammar = typeof Prism !== 'undefined' && Prism.languages[prismLang];
+    const highlighted = grammar
+      ? Prism.highlight(trimmed, grammar, prismLang)
+      : escapeHtml(trimmed);
     const attr = lang ? ` data-lang="${lang}"` : '';
-    blocks.push(`<pre${attr}><code>${escapeHtml(code.trim())}</code></pre>`);
+    blocks.push(`<pre${attr}><code class="language-${prismLang}">${highlighted}</code></pre>`);
     return `\x02B${blocks.length - 1}\x03`;
   });
 

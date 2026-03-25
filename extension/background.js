@@ -3,6 +3,9 @@
 // Global default: panel disabled for all tabs unless explicitly enabled per-tab.
 chrome.sidePanel.setOptions({ path: 'sidepanel.html', enabled: false });
 
+// Open panel when user clicks the extension icon (requires user gesture).
+chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+
 chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
   if (!tab.url) return;
 
@@ -13,10 +16,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
     path: 'sidepanel.html',
     enabled: isProblem
   });
-
-  if (isProblem && info.status === 'complete') {
-    await chrome.sidePanel.open({ tabId });
-  }
 });
 
 chrome.commands.onCommand.addListener(async (command, tab) => {

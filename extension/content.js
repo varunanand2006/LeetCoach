@@ -4,9 +4,6 @@
 // Module-level state
 // ---------------------------------------------------------------------------
 
-/** Stores the most recent wrong-answer failure info from a submission. */
-let failureInfo = null;
-
 /** Set to true once Monaco editor is confirmed available — skips retry on future calls. */
 let monacoInitialized = false;
 
@@ -20,12 +17,19 @@ function getSlug() {
 }
 
 function getRawTitle() {
-  // Prefer the data-cy attribute; fall back to the large title class
-  return (
-    document.querySelector('[data-cy="question-title"]')?.innerText?.trim() ??
-    document.querySelector('.text-title-large')?.innerText?.trim() ??
-    null
-  );
+  // 1. Stable data attribute (most reliable)
+  const byCy = document.querySelector('[data-cy="question-title"]')?.innerText?.trim();
+  if (byCy) return byCy;
+
+  // 2. Known class name (may change with LeetCode UI updates)
+  const byClass = document.querySelector('.text-title-large')?.innerText?.trim();
+  if (byClass) return byClass;
+
+  // 3. document.title — always "1. Two Sum - LeetCode" or "Two Sum - LeetCode"
+  const fromPageTitle = document.title.replace(/\s*[-–|]\s*LeetCode.*$/i, '').trim();
+  if (fromPageTitle) return fromPageTitle;
+
+  return null;
 }
 
 function getNumber() {
@@ -128,78 +132,6 @@ function getLanguage() {
 }
 
 // ---------------------------------------------------------------------------
-// Submission result watcher (MutationObserver)
-// ---------------------------------------------------------------------------
-
-/**
- * Given a container element, scan its children for labelled sections and
- * extract failed input, expected output, and actual output text.
- */
-function extractFailureDetails(containerEl) {
-  const details = {
-    input: null,
-    expected: null,
-    actual: null,
-  };
-
-  if (!containerEl) return details;
-
-  const allEls = containerEl.querySelectorAll('*');
-  for (const el of allEls) {
-    // Only look at leaf-ish elements to avoid capturing parent text that
-    // includes child text
-    if (el.children.length > 2) continue;
-
-    const text = el.innerText?.trim();
-    if (!text) continue;
-
-    if (text === 'Input') {
-      details.input = el.nextElementSibling?.innerText?.trim() ?? null;
-    } else if (text === 'Expected Output' || text === 'Expected') {
-      details.expected = el.nextElementSibling?.innerText?.trim() ?? null;
-    } else if (text === 'Output' || text === 'Stdout') {
-      // Guard against re-matching "Expected Output" labels
-      details.actual = el.nextElementSibling?.innerText?.trim() ?? null;
-    }
-  }
-
-  return details;
-}
-
-function watchSubmissionResults() {
-  const observer = new MutationObserver(() => {
-    const resultEl = document.querySelector('[data-e2e-locator="submission-result"]');
-    if (!resultEl) return;
-
-    const statusText = resultEl.innerText?.trim() ?? '';
-
-    if (statusText === 'Running' || statusText === 'Pending') {
-      // New submission started — clear previous failure info
-      failureInfo = null;
-      return;
-    }
-
-    if (statusText.includes('Wrong Answer')) {
-      // Walk up to find the result container that holds input/expected/actual panels
-      const container =
-        resultEl.closest('[class*="result-container"]') ??
-        resultEl.closest('[class*="result"]') ??
-        resultEl.parentElement;
-
-      const details = extractFailureDetails(container ?? resultEl);
-      failureInfo = {
-        status: 'Wrong Answer',
-        input: details.input,
-        expected: details.expected,
-        actual: details.actual,
-      };
-    }
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
-}
-
-// ---------------------------------------------------------------------------
 // Context collectors
 // ---------------------------------------------------------------------------
 
@@ -212,7 +144,6 @@ function collectBaseContext() {
     tags:        getTags(),
     description: getDescription(),
     language:    getLanguage(),
-    failureInfo,
   };
 }
 
@@ -239,8 +170,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 // Initialise
 // ---------------------------------------------------------------------------
-
-watchSubmissionResults();
 
 // Pre-warm Monaco detection so it's ready before the first GET_CONTEXT message arrives
 getCodeWithRetry();
