@@ -58,9 +58,9 @@ interface for code feedback, hints, and DSA guidance.
 - IAM — Lambda execution role scoped to Bedrock + CloudWatch
 
 ## Development Commands
-- Deploy backend: sam build && sam deploy
+- Deploy backend: sam build --use-container && sam deploy
 - Load extension: chrome://extensions → Developer Mode → Load Unpacked → extension/
-- After Lambda changes: sam build && sam deploy
+- After Lambda changes: sam build --use-container && sam deploy
 - After extension changes: refresh extension in chrome://extensions, reload LeetCode tab
 
 ## Current Status

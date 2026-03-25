@@ -109,12 +109,12 @@ Last submission result: Wrong Answer
 
     prompt += """
 Your task: Analyze the code. Use short bullet points:
-- Correctness: is the logic right? If wrong answer, diagnose why in one line.
-- Complexity: Big-O time and space. Is it optimal?
-- Edge cases: any obvious gaps (1-2 max).
-- Style: one line if anything notable.
+- **Correctness:** is the logic right? If wrong answer, diagnose why in one line.
+- **Complexity:** Big-O time and space. Is it optimal?
+- **Edge cases:** any obvious gaps (1-2 max).
+- **Style:** one line if anything notable.
 
-No rewrites, no full solutions. Skip sections that are fine.
+No rewrites, no full solutions. Skip sections that are fine. Use code fences with language tag if quoting code.
 """
     return prompt
 
@@ -138,7 +138,7 @@ User's current code ({language}):
 {code}
 ```
 
-Your task: In 3-4 lines total, state: the algorithmic pattern, the specific data structure variant to use, and the optimal time/space complexity. If the user already has an approach, note whether it's on the right track. No code, no explanation of how to implement — just the tools and why.
+Your task: In 3-4 lines total, state: the algorithmic pattern, the specific data structure variant to use, and the optimal time/space complexity. If the user already has an approach, note whether it's on the right track. No code, no explanation of how to implement — just the tools and why. Bold the algorithm pattern and data structure names (e.g., **sliding window**, **monotonic deque**).
 """
 
 
@@ -177,6 +177,7 @@ Rules:
 - Recommend specific DS/algorithm variants for this problem, not generic advice.
 - Never give away the full solution.
 - No preamble, no summary.
+- Format responses with markdown: use code fences with language tag for any code snippets, **bold** for key terms, and bullet lists for multi-part answers.
 """
 
     return prompt

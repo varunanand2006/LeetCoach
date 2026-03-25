@@ -455,8 +455,9 @@ function escapeHtml(str) {
 function renderMarkdown(raw) {
   // Stash fenced code blocks
   const blocks = [];
-  let text = raw.replace(/```[\w]*\n?([\s\S]*?)```/g, (_, code) => {
-    blocks.push(`<pre><code>${escapeHtml(code.trim())}</code></pre>`);
+  let text = raw.replace(/```([\w]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    const attr = lang ? ` data-lang="${lang}"` : '';
+    blocks.push(`<pre${attr}><code>${escapeHtml(code.trim())}</code></pre>`);
     return `\x02B${blocks.length - 1}\x03`;
   });
 
