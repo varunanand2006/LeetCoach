@@ -251,6 +251,10 @@
       cursor: pointer;
       transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
       white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
     }
 
     .mode-btn:hover:not(:disabled) {
@@ -358,6 +362,112 @@
       cursor: not-allowed;
     }
 
+    /* -------------------------------------------------------------------------
+       Mode button icons
+    ------------------------------------------------------------------------- */
+
+    .gg-key {
+      box-sizing: border-box;
+      position: relative;
+      display: block;
+      transform: scale(var(--ggs, 1));
+      width: 6px;
+      height: 8px;
+      border: 2px solid;
+      border-radius: 100px;
+      margin-left: 0; /* override standalone -12px default */
+      margin-right: 12px; /* make room for shaft which extends 12px right via absolute positioning */
+      flex-shrink: 0;
+    }
+    .gg-key::after,
+    .gg-key::before {
+      content: "";
+      display: block;
+      box-sizing: border-box;
+      position: absolute;
+      right: -12px;
+    }
+    .gg-key::before {
+      background: currentColor;
+      width: 12px;
+      height: 2px;
+      top: 1px;
+    }
+    .gg-key::after {
+      width: 5px;
+      height: 3px;
+      top: 2px;
+      border-left: 2px solid;
+      border-right: 2px solid;
+    }
+
+    .gg-play-list-search {
+      box-sizing: border-box;
+      position: relative;
+      display: block;
+      transform: scale(var(--ggs, 1));
+      width: 12px;
+      height: 6px;
+      border-top: 0 solid transparent;
+      border-bottom: 2px solid transparent;
+      box-shadow: inset 0 -2px 0, -2px 4px 0 -2px, 0 -2px 0 0;
+      flex-shrink: 0;
+    }
+    .gg-play-list-search::after,
+    .gg-play-list-search::before {
+      content: "";
+      display: block;
+      box-sizing: border-box;
+      position: absolute;
+      bottom: -7px;
+    }
+    .gg-play-list-search::after {
+      width: 3px;
+      height: 2px;
+      background: currentColor;
+      transform: rotate(45deg);
+      right: -4px;
+    }
+    .gg-play-list-search::before {
+      width: 6px;
+      height: 6px;
+      border-radius: 4px;
+      border: 2px solid;
+      right: -3px;
+    }
+
+    .gg-list-tree {
+      box-sizing: border-box;
+      position: relative;
+      display: block;
+      width: 22px;
+      height: 22px;
+      --ggs: 0.55;
+      transform: scale(var(--ggs, 1));
+      transform-origin: center;
+      margin: -5px; /* collapse extra layout space from scale-down */
+      background:
+        linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat left top/8px 8px,
+        linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat center 3px/8px 2px,
+        linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat 10px 17px/6px 2px,
+        linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat 10px 3px/2px 16px;
+      flex-shrink: 0;
+    }
+    .gg-list-tree::after,
+    .gg-list-tree::before {
+      content: "";
+      display: block;
+      box-sizing: border-box;
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border: 2px solid;
+      right: 0;
+    }
+    .gg-list-tree::after {
+      bottom: 0;
+    }
+
     .gg-arrow-up-r {
       box-sizing: border-box;
       position: relative;
@@ -408,13 +518,13 @@
     <!-- Mode buttons -->
     <div id="mode-bar">
       <button id="btn-hint" class="mode-btn" title="Get a progressive hint">
-        Hint <span id="hint-level-badge">1</span>
+        <i class="gg-key"></i> Hint <span id="hint-level-badge">1</span>
       </button>
       <button id="btn-analyze" class="mode-btn" title="Analyze your current code">
-        Analyze
+        <i class="gg-play-list-search"></i> Analyze
       </button>
       <button id="btn-dsa" class="mode-btn" title="Data structure &amp; algorithm tips">
-        DSA Tips
+        <i class="gg-list-tree"></i> DSA Tips
       </button>
     </div>
 
