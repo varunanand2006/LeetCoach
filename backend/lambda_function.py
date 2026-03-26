@@ -1,13 +1,72 @@
 import json
+import os
+import http.client
 import boto3
 
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 
 
-def response_headers():
-    return {
-        'Content-Type': 'text/plain',
-    }
+# ---------------------------------------------------------------------------
+# Streaming bootstrap patch
+# ---------------------------------------------------------------------------
+# After _stream_to_runtime() posts the response directly to the Lambda Runtime
+# API, bootstrap will also call runtime_client.post_invocation_result with a
+# buffered "null" response. We patch the runtime_client C extension module
+# directly — it's a sys.modules singleton shared by both the bootstrap and our
+# code, so the patch is visible to the bootstrap's call.
+
+import runtime_client as _rc
+
+_streaming_done = set()
+_orig_rc_post = _rc.post_invocation_result
+
+
+def _guarded_post(invoke_id, result_data, content_type):
+    if invoke_id in _streaming_done:
+        _streaming_done.discard(invoke_id)
+        return None
+    return _orig_rc_post(invoke_id, result_data, content_type)
+
+
+_rc.post_invocation_result = _guarded_post
+
+
+# ---------------------------------------------------------------------------
+# Streaming helpers
+# ---------------------------------------------------------------------------
+
+def _stream_to_runtime(invoke_id, chunks):
+    """POST text chunks to the Lambda Runtime API with chunked transfer encoding."""
+    conn = http.client.HTTPConnection(os.environ['AWS_LAMBDA_RUNTIME_API'])
+    conn.putrequest('POST', f'/2018-06-01/runtime/invocation/{invoke_id}/response')
+    conn.putheader('Content-Type', 'text/plain; charset=utf-8')
+    conn.putheader('Transfer-Encoding', 'chunked')
+    conn.putheader('Lambda-Runtime-Function-Response-Mode', 'streaming')
+    conn.endheaders()
+
+    for chunk in chunks:
+        if chunk:
+            data = chunk.encode('utf-8') if isinstance(chunk, str) else chunk
+            conn.send(f'{len(data):x}\r\n'.encode())
+            conn.send(data)
+            conn.send(b'\r\n')
+
+    conn.send(b'0\r\n\r\n')
+    conn.getresponse().read()
+    _streaming_done.add(invoke_id)
+
+
+def _bedrock_text_chunks(stream):
+    """Yield text deltas from a Bedrock invoke_model_with_response_stream response."""
+    for event in stream:
+        chunk = event.get('chunk')
+        if not chunk:
+            continue
+        data = json.loads(chunk['bytes'])
+        if data.get('type') == 'content_block_delta':
+            text = data.get('delta', {}).get('text', '')
+            if text:
+                yield text
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +178,7 @@ def build_analyze_prompt(body):
     language = body.get('language', 'Python')
     submission_snippet = format_submission_result(body.get('submissionResult'))
 
-    prompt = f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
+    return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
 Current problem:
 - Name: {problem.get('name', 'Unknown')}
@@ -141,7 +200,6 @@ Your task: Analyze the code. Use short bullet points:
 
 No rewrites, no full solutions. Skip sections that are fine. Use code fences with language tag if quoting code.
 """
-    return prompt
 
 
 def build_dsa_prompt(body):
@@ -174,7 +232,7 @@ def build_chat_prompt(body):
     language = body.get('language', 'Python')
     submission_snippet = format_submission_result(body.get('submissionResult'))
 
-    prompt = f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
+    return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
 Current problem:
 - Name: {problem.get('name', 'Unknown')}
@@ -196,8 +254,6 @@ Rules:
 - Format responses with markdown: use code fences with language tag for any code snippets, **bold** for key terms, and bullet lists for multi-part answers.
 """
 
-    return prompt
-
 
 # ---------------------------------------------------------------------------
 # Message builder
@@ -207,7 +263,6 @@ def build_messages(body):
     mode = body.get('mode', 'chat')
     history = body.get('history', [])
 
-    # For button-triggered modes, synthesize the user turn
     trigger_by_mode = {
         'hint':    'Please give me a hint.',
         'analyze': 'Please analyze my code.',
@@ -232,9 +287,13 @@ def handler(event, context):
         system_prompt, max_tokens = build_prompt_for_mode(mode, body)
         messages = build_messages(body)
 
-        model_id = 'us.anthropic.claude-haiku-4-5-20251001-v1:0' if mode in ('hint', 'dsa') else 'us.anthropic.claude-sonnet-4-6'
+        model_id = (
+            'us.anthropic.claude-haiku-4-5-20251001-v1:0'
+            if mode in ('hint', 'dsa')
+            else 'us.anthropic.claude-sonnet-4-6'
+        )
 
-        response = bedrock.invoke_model(
+        response = bedrock.invoke_model_with_response_stream(
             modelId=model_id,
             body=json.dumps({
                 'anthropic_version': 'bedrock-2023-05-31',
@@ -244,14 +303,7 @@ def handler(event, context):
             })
         )
 
-        result = json.loads(response['body'].read())
-        text = result['content'][0]['text']
-
-        return {
-            'statusCode': 200,
-            'headers': response_headers(),
-            'body': text,
-        }
+        _stream_to_runtime(context.aws_request_id, _bedrock_text_chunks(response['body']))
 
     except Exception as e:
         print(f"Error: {e}")
