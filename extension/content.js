@@ -1,13 +1,6 @@
 // content.js - DOM reading only, no UI rendering, no fetch calls
 
 // ---------------------------------------------------------------------------
-// Module-level state
-// ---------------------------------------------------------------------------
-
-/** Set to true once Monaco editor is confirmed available — skips retry on future calls. */
-let monacoInitialized = false;
-
-// ---------------------------------------------------------------------------
 // Problem context readers
 // ---------------------------------------------------------------------------
 
@@ -80,45 +73,6 @@ function getDescription() {
 }
 
 // ---------------------------------------------------------------------------
-// Monaco editor — async retry
-// ---------------------------------------------------------------------------
-
-/**
- * Attempt to read code from the Monaco editor.
- * Returns a Promise that resolves to the code string (or empty string on failure).
- * Retries up to `maxRetries` times with `delayMs` between each attempt.
- */
-function getCodeWithRetry(maxRetries = 10, delayMs = 500) {
-  return new Promise((resolve) => {
-    // If Monaco was already found in a previous call, skip the retry loop entirely
-    if (monacoInitialized) {
-      resolve(window.monaco?.editor?.getModels()[0]?.getValue() ?? '');
-      return;
-    }
-
-    let attempts = 0;
-
-    function attempt() {
-      const code = window.monaco?.editor?.getModels()[0]?.getValue();
-      if (code !== undefined) {
-        monacoInitialized = true;
-        resolve(code);
-        return;
-      }
-      attempts++;
-      if (attempts < maxRetries) {
-        setTimeout(attempt, delayMs);
-      } else {
-        // Monaco never became available — return empty string as fallback
-        resolve('');
-      }
-    }
-
-    attempt();
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Language dropdown
 // ---------------------------------------------------------------------------
 
@@ -132,7 +86,7 @@ function getLanguage() {
 }
 
 // ---------------------------------------------------------------------------
-// Context collectors
+// Context collector
 // ---------------------------------------------------------------------------
 
 function collectBaseContext() {
@@ -147,29 +101,12 @@ function collectBaseContext() {
   };
 }
 
-async function collectContext() {
-  const code = await getCodeWithRetry();
-  return { ...collectBaseContext(), code };
-}
-
 // ---------------------------------------------------------------------------
 // Message listener
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === 'GET_CONTEXT') {
-    collectContext().then(sendResponse);
-    return true; // keep the message channel open for the async response
-  }
   if (message.type === 'GET_BASE_CONTEXT') {
     sendResponse(collectBaseContext());
-    // synchronous — no need to return true
   }
 });
-
-// ---------------------------------------------------------------------------
-// Initialise
-// ---------------------------------------------------------------------------
-
-// Pre-warm Monaco detection so it's ready before the first GET_CONTEXT message arrives
-getCodeWithRetry();

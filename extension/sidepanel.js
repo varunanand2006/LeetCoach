@@ -142,7 +142,7 @@ function setupNavigationDetection() {
 
     try {
       const context = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tabId, { type: 'GET_CONTEXT' }, (res) => {
+        chrome.tabs.sendMessage(tabId, { type: 'GET_BASE_CONTEXT' }, (res) => {
           if (chrome.runtime.lastError) { /* content.js not injected — ignore */ }
           resolve(res ?? null);
         });
