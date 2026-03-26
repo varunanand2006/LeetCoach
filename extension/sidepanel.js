@@ -511,12 +511,9 @@ function removeEmptyState() {
 function buildModeBody(mode, context, hintLevel) {
   const historySlice = getTabState(activeTabId).history.slice(-10);
   const problem = {
-    name:        context?.title       ?? null,
-    number:      context?.number      ?? null,
     difficulty:  context?.difficulty  ?? null,
     tags:        context?.tags        ?? [],
     description: context?.description ?? null,
-    slug:        context?.slug        ?? null,
   };
   const code     = context?.code     ?? '';
   const language = context?.language ?? null;
@@ -524,7 +521,7 @@ function buildModeBody(mode, context, hintLevel) {
   const submissionResult = context?.submissionResult ?? null;
   if (mode === 'hint')    return { mode, problem, code, language, hintLevel, submissionResult };
   if (mode === 'dsa')     return { mode, problem, code, language, submissionResult };
-  if (mode === 'analyze') return { mode, problem, code, language, history: historySlice, submissionResult };
+  if (mode === 'analyze') return { mode, problem, code, language, submissionResult };
   return { mode, problem, code, language, history: historySlice, submissionResult }; // chat
 }
 

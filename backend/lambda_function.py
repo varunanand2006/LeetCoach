@@ -76,12 +76,12 @@ def _bedrock_text_chunks(stream):
 def build_prompt_for_mode(mode, body):
     """Returns (system_prompt: str, max_tokens: int)."""
     if mode == 'hint':
-        return build_hint_prompt(body), 128
+        return build_hint_prompt(body), 64
     if mode == 'analyze':
-        return build_analyze_prompt(body), 512
+        return build_analyze_prompt(body), 256
     if mode == 'dsa':
-        return build_dsa_prompt(body), 256
-    return build_chat_prompt(body), 384  # 'chat' or unknown
+        return build_dsa_prompt(body), 128
+    return build_chat_prompt(body), 256  # 'chat' or unknown
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +149,6 @@ def build_hint_prompt(body):
     return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
 Current problem:
-- Name: {problem.get('name', 'Unknown')}
-- Number: {problem.get('number', '?')}
 - Difficulty: {problem.get('difficulty', 'Unknown')}
 - Tags: {', '.join(problem.get('tags', []))}
 - Description: {problem.get('description', '')}
@@ -181,8 +179,6 @@ def build_analyze_prompt(body):
     return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
 Current problem:
-- Name: {problem.get('name', 'Unknown')}
-- Number: {problem.get('number', '?')}
 - Difficulty: {problem.get('difficulty', 'Unknown')}
 - Tags: {', '.join(problem.get('tags', []))}
 - Description: {problem.get('description', '')}
@@ -192,13 +188,12 @@ User's current code ({language}):
 {code}
 ```
 {submission_snippet}
-Your task: Analyze the code. Use short bullet points:
-- **Correctness:** is the logic right? If there's a submission failure, diagnose why in one line.
+Your task: Analyze the code. 3 bullets max, one line each. Skip any section that has no issue:
+- **Correctness:** is the logic right? If there's a submission failure, diagnose why.
 - **Complexity:** Big-O time and space. Is it optimal?
-- **Edge cases:** any obvious gaps (1-2 max).
-- **Style:** one line if anything notable.
+- **Edge cases:** any obvious gaps.
 
-No rewrites, no full solutions. Skip sections that are fine. Use code fences with language tag if quoting code.
+No rewrites, no full solutions. Be concise — stop as soon as the point is made. Use code fences with language tag if quoting code.
 """
 
 
@@ -211,8 +206,6 @@ def build_dsa_prompt(body):
     return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
 Current problem:
-- Name: {problem.get('name', 'Unknown')}
-- Number: {problem.get('number', '?')}
 - Difficulty: {problem.get('difficulty', 'Unknown')}
 - Tags: {', '.join(problem.get('tags', []))}
 - Description: {problem.get('description', '')}
@@ -222,7 +215,7 @@ User's current code ({language}):
 {code}
 ```
 {submission_snippet}
-Your task: In 3-4 lines total, state: the algorithmic pattern, the specific data structure variant to use, and the optimal time/space complexity. If the user already has an approach, note whether it's on the right track. No code, no explanation of how to implement — just the tools and why. Bold the algorithm pattern and data structure names (e.g., **sliding window**, **monotonic deque**).
+Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**).
 """
 
 
@@ -235,8 +228,6 @@ def build_chat_prompt(body):
     return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
 
 Current problem:
-- Name: {problem.get('name', 'Unknown')}
-- Number: {problem.get('number', '?')}
 - Difficulty: {problem.get('difficulty', 'Unknown')}
 - Tags: {', '.join(problem.get('tags', []))}
 - Description: {problem.get('description', '')}
@@ -247,7 +238,7 @@ User's current code ({language}):
 ```
 {submission_snippet}
 Rules:
-- Answer directly. 1-3 sentences for syntax questions, short paragraphs for approach questions.
+- Be terse. 1-2 sentences max unless the question genuinely requires more. Stop as soon as the point is made.
 - Recommend specific DS/algorithm variants for this problem, not generic advice.
 - Never give away the full solution.
 - No preamble, no summary.
