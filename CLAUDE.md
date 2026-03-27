@@ -9,7 +9,7 @@ interface for code feedback, hints, and DSA guidance.
 - **Frontend**: Chrome Extension (Manifest V3, vanilla JavaScript)
 - **Backend**: Single AWS Lambda function (Python 3.11)
 - **AI**: Claude Haiku (hint/dsa) + Claude Sonnet (analyze/chat) via Amazon Bedrock
-- **Database**: DynamoDB (deferred — not in v1)
+- **Database**: DynamoDB (`leetcoach-users` table, PAY_PER_REQUEST)
 - **Infrastructure**: AWS SAM
 
 ## Project Structure
@@ -28,27 +28,39 @@ interface for code feedback, hints, and DSA guidance.
 - Side panel enabled only on leetcode.com/problems/* tabs; auto-opens on icon click
 - Keyboard shortcut Cmd+Shift+L / Ctrl+Shift+L to reopen
 - Lambda response is streamed — `InvokeMode: RESPONSE_STREAM` in template.yaml; chunks posted directly to Lambda Runtime API via chunked HTTP; bootstrap's duplicate buffered post is intercepted by monkey-patching `runtime_client.post_invocation_result` (the C extension module, not the Python class — the Python class varies between bundled and system awslambdaric versions)
+- RESPONSE_STREAM Lambdas do NOT propagate `statusCode` from a returned dict — all non-AI responses (errors, usage JSON) must also use `_stream_to_runtime`, never return a dict
+- Weekly limit errors are streamed as JSON `{"error": "weekly_limit_reached", ...}`; the frontend detects them by attempting `JSON.parse` on the full response after streaming completes
+- userId is read from LeetCode nav by parsing the href of `a[href*="/u/"]` links (not innerText — LeetCode is a React SPA and the text may not be present in the isolated content script world)
 
 ## Extension Files and Their Roles
 - `manifest.json` — permissions, content scripts, side panel config, keyboard shortcut
 - `background.js` — side panel enable/disable logic, keyboard shortcut handler
 - `content.js` — reads LeetCode DOM (title, number, difficulty, tags, description, language); does NOT read Monaco code
 - `sidepanel.html` — side panel UI markup + all CSS (dark theme, mode buttons, spinner, markdown styles)
-- `sidepanel.js` — chat logic, per-tab state, Monaco code reading (MAIN world), submission result reading, Lambda fetch, markdown rendering
+- `sidepanel.js` — chat logic, per-tab state, Monaco code reading (MAIN world), submission result reading, Lambda fetch, markdown rendering, usage tracking (local via `chrome.storage.local` + server sync via `usage` mode on init)
 - `prism.js` — bundled Prism.js for syntax highlighting in code fences
 - `prism-theme.css` — dark Prism theme matching the sidebar palette
 
 ## Backend
 - Single handler in lambda_function.py
-- Receives: `{ mode, message, problem, code, language, history, hintLevel, submissionResult }`
-  - `mode`: `"chat"` | `"hint"` | `"analyze"` | `"dsa"`
+- Receives: `{ mode, message, problem, code, language, history, hintLevel, submissionResult, userId }`
+  - `mode`: `"chat"` | `"hint"` | `"analyze"` | `"dsa"` | `"usage"`
   - `problem`: `{ difficulty, tags, description }` (name/number/slug intentionally omitted)
   - `hintLevel`: 1–3 (hint mode only)
   - `submissionResult`: `{ status, input, expected, actual, message }` or null
   - `history`: last 10 turns (chat only — analyze/hint/dsa send no history)
+  - `userId`: LeetCode username (may be null — always fail open if missing)
 - Returns: streamed plain text via chunked transfer encoding to Lambda Runtime API
 - Model routing: hint + dsa → `claude-haiku-4-5-20251001`; analyze + chat → `claude-sonnet-4-6`
 - Token budgets: hint 64, dsa 128, analyze 256, chat 256
+- `usage` mode: reads DynamoDB, streams `{weeklyRequests, weekStartDate}` as JSON — does NOT count against limit
+- `check_and_update_usage(user_id)`: called before every Bedrock call; returns False if weeklyRequests >= WEEKLY_LIMIT; always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday
+- `WEEKLY_LIMIT = 100` (named constant, easy to change)
+
+## DynamoDB
+- Table: `leetcoach-users`, partition key: `userId` (String), PAY_PER_REQUEST
+- Item schema: `userId`, `weeklyRequests`, `totalRequests`, `weekStartDate` (YYYY-MM-DD of Monday), `firstSeen`, `lastSeen`, `tier` (free)
+- IAM: Lambda role has `AmazonDynamoDBFullAccess`; deploying user (`leetcoach-dev`) also needs `AmazonDynamoDBFullAccess`
 
 ## What the Extension Can Read from LeetCode DOM
 - Problem name and number
@@ -59,16 +71,18 @@ interface for code feedback, hints, and DSA guidance.
 - Current user code (via `chrome.scripting.executeScript` MAIN world in sidepanel.js)
 - Submission failure details: Wrong Answer (input/expected/actual), Runtime Error, Compile Error, TLE, MLE, OLE (via MAIN world in sidepanel.js)
 
+- LeetCode username (`userId`): parsed from `a[href*="/u/"]` href, not innerText
+
 Not implemented (listed in original spec but not built):
 - Public test cases
-- User username
 
 ## AWS Services
 - Bedrock (Claude Haiku + Sonnet) — AI responses
 - Lambda — backend compute with Function URL (no API Gateway)
 - Lambda Function URL: `https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/`
 - CloudWatch — logging
-- IAM — Lambda execution role with `AmazonBedrockFullAccess`
+- DynamoDB — `leetcoach-users` usage tracking table
+- IAM — Lambda execution role with `AmazonBedrockFullAccess` + `AmazonDynamoDBFullAccess`
 
 ## Development Commands
 - Deploy backend: sam build --use-container && sam deploy
@@ -90,3 +104,5 @@ Not implemented (listed in original spec but not built):
 - [x] template.yaml
 - [x] First deployment
 - [x] End to end test
+- [x] DynamoDB weekly usage tracking (100 req/week, fails open)
+- [x] Hourglass usage indicator in header (top right, hover tooltip)

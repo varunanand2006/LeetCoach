@@ -25,20 +25,6 @@ function getRawTitle() {
   return null;
 }
 
-function getNumber() {
-  const raw = getRawTitle();
-  if (!raw) return null;
-  // Title format: "1. Two Sum"
-  const match = raw.match(/^(\d+)\./);
-  return match ? parseInt(match[1], 10) : null;
-}
-
-function getTitle() {
-  const raw = getRawTitle();
-  if (!raw) return null;
-  // Strip leading "123. " prefix if present
-  return raw.replace(/^\d+\.\s*/, '').trim() || null;
-}
 
 function getDifficulty() {
   // Target elements whose class contains "text-difficulty-" (e.g. text-difficulty-easy)
@@ -94,10 +80,12 @@ function getUsername() {
 // ---------------------------------------------------------------------------
 
 function collectBaseContext() {
+  const rawTitle    = getRawTitle();
+  const numberMatch = rawTitle?.match(/^(\d+)\./);
   return {
     slug:        getSlug(),
-    title:       getTitle(),
-    number:      getNumber(),
+    title:       rawTitle?.replace(/^\d+\.\s*/, '').trim() || null,
+    number:      numberMatch ? parseInt(numberMatch[1], 10) : null,
     difficulty:  getDifficulty(),
     tags:        getTags(),
     description: getDescription(),

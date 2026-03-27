@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import http.client
 import datetime
 import boto3
@@ -9,6 +10,23 @@ dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
 WEEKLY_LIMIT = 100
 TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
+
+# Model IDs — override via Lambda environment variables when Anthropic deprecates a version
+HAIKU_MODEL_ID  = os.environ.get('HAIKU_MODEL_ID',  'us.anthropic.claude-haiku-4-5-20251001-v1:0')
+SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
+
+# Shared secret sent by the extension as x-api-key. Set API_KEY in the Lambda
+# environment (template.yaml) and mirror the same value in sidepanel.js.
+# Leave empty to disable the check (not recommended for production).
+API_KEY = os.environ.get('API_KEY', '')
+
+# Input validation limits
+VALID_MODES       = {'chat', 'hint', 'analyze', 'dsa', 'usage'}
+MAX_CODE_BYTES    = 10_000
+MAX_DESC_BYTES    = 5_000
+MAX_MSG_BYTES     = 2_000
+MAX_HISTORY_TURNS = 10
+_USERID_RE        = re.compile(r'^[a-zA-Z0-9_\-\.]{1,50}$')
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +90,53 @@ def _bedrock_text_chunks(stream):
             text = data.get('delta', {}).get('text', '')
             if text:
                 yield text
+
+
+# ---------------------------------------------------------------------------
+# Input validation / sanitization
+# ---------------------------------------------------------------------------
+
+def validate_and_sanitize_body(body):
+    """Sanitize request body in-place. Truncates oversized fields."""
+    # Truncate code
+    code = body.get('code', '')
+    if isinstance(code, str) and len(code.encode('utf-8')) > MAX_CODE_BYTES:
+        body['code'] = code.encode('utf-8')[:MAX_CODE_BYTES].decode('utf-8', errors='ignore')
+
+    # Truncate problem description and sanitize tags
+    problem = body.get('problem')
+    if isinstance(problem, dict):
+        desc = problem.get('description', '')
+        if isinstance(desc, str) and len(desc.encode('utf-8')) > MAX_DESC_BYTES:
+            problem['description'] = desc.encode('utf-8')[:MAX_DESC_BYTES].decode('utf-8', errors='ignore')
+        tags = problem.get('tags', [])
+        if isinstance(tags, list):
+            problem['tags'] = [t[:100] for t in tags if isinstance(t, str)][:20]
+
+    # Truncate user message
+    msg = body.get('message', '')
+    if isinstance(msg, str) and len(msg.encode('utf-8')) > MAX_MSG_BYTES:
+        body['message'] = msg.encode('utf-8')[:MAX_MSG_BYTES].decode('utf-8', errors='ignore')
+
+    # Clamp hintLevel to 1–3
+    hl = body.get('hintLevel', 1)
+    if not isinstance(hl, int) or hl not in (1, 2, 3):
+        try:
+            body['hintLevel'] = max(1, min(3, int(hl)))
+        except (TypeError, ValueError):
+            body['hintLevel'] = 1
+
+    # Limit history depth
+    history = body.get('history', [])
+    if isinstance(history, list):
+        body['history'] = history[-MAX_HISTORY_TURNS:]
+    else:
+        body['history'] = []
+
+    # Validate userId — reject anything that doesn't look like a LeetCode username
+    user_id = body.get('userId')
+    if user_id is not None and (not isinstance(user_id, str) or not _USERID_RE.match(user_id)):
+        body['userId'] = None
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +331,7 @@ def build_messages(body):
     }
     message = body.get('message') or trigger_by_mode.get(mode, '')
 
-    messages = list(history[-10:])
+    messages = list(history)
     messages.append({'role': 'user', 'content': message})
     return messages
 
@@ -340,9 +405,30 @@ def check_and_update_usage(user_id):
 
 def handler(event, context):
     try:
+        # --- API key authentication ---
+        # Lambda Function URL lowercases all header names.
+        if API_KEY:
+            headers = event.get('headers') or {}
+            if headers.get('x-api-key', '') != API_KEY:
+                _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                    'error': 'unauthorized',
+                    'message': 'Unauthorized.',
+                })]))
+                return
+
         body = json.loads(event.get('body', '{}'))
         mode = body.get('mode', 'chat')
 
+        # --- Mode whitelist ---
+        if mode not in VALID_MODES:
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'error': 'invalid_request',
+                'message': 'Invalid request.',
+            })]))
+            return
+
+        # --- Sanitize inputs ---
+        validate_and_sanitize_body(body)
         user_id = body.get('userId', None)
 
         if mode == 'usage':
@@ -373,11 +459,7 @@ def handler(event, context):
         system_prompt, max_tokens = build_prompt_for_mode(mode, body)
         messages = build_messages(body)
 
-        model_id = (
-            'us.anthropic.claude-haiku-4-5-20251001-v1:0'
-            if mode in ('hint', 'dsa')
-            else 'us.anthropic.claude-sonnet-4-6'
-        )
+        model_id = HAIKU_MODEL_ID if mode in ('hint', 'dsa') else SONNET_MODEL_ID
 
         response = bedrock.invoke_model_with_response_stream(
             modelId=model_id,
@@ -392,9 +474,11 @@ def handler(event, context):
         _stream_to_runtime(context.aws_request_id, _bedrock_text_chunks(response['body']))
 
     except Exception as e:
-        print(f"Error: {e}")
-        return {
-            'statusCode': 500,
-            'headers': {'Content-Type': 'application/json'},
-            'body': json.dumps({'error': str(e)}),
-        }
+        print(f"Unhandled error: {e}")
+        try:
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'error': 'internal_error',
+                'message': 'An internal error occurred.',
+            })]))
+        except Exception:
+            pass

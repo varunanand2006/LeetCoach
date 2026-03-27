@@ -28,9 +28,27 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref UsersTable
+          # Shared secret validated against x-api-key header sent by the extension.
+          # Set this to a strong random value and mirror it in sidepanel.js API_KEY.
+          API_KEY: "4d36f3f48a48b7447c6344c503453500ff4675dc33ddce9453e973ddb1ebe71d"
+          HAIKU_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+          SONNET_MODEL_ID: "us.anthropic.claude-sonnet-4-6"
       Policies:
-        - AmazonBedrockFullAccess
-        - AmazonDynamoDBFullAccess
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModelWithResponseStream
+              Resource:
+                # Cross-region inference profiles (us.anthropic.* model IDs)
+                - !Sub 'arn:aws:bedrock:us-east-1:${AWS::AccountId}:inference-profile/us.anthropic.claude-*'
+                # Underlying foundation models Bedrock routes to internally
+                - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-*'
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt UsersTable.Arn
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
@@ -39,6 +57,7 @@ Resources:
             - '*'
           AllowHeaders:
             - 'Content-Type'
+            - 'x-api-key'
           AllowMethods:
             - 'POST'
 

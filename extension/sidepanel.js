@@ -5,6 +5,8 @@
 // ---------------------------------------------------------------------------
 
 const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/';
+// Must match the API_KEY environment variable set on the Lambda (template.yaml).
+const API_KEY = '4d36f3f48a48b7447c6344c503453500ff4675dc33ddce9453e973ddb1ebe71d';
 const WEEKLY_LIMIT = 100;
 
 const LANG_MAP = {
@@ -67,11 +69,15 @@ async function loadUsageCount() {
 
 async function fetchUsageFromServer(userId) {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
     const response = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
       body: JSON.stringify({ mode: 'usage', userId }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     if (!response.ok) return;
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -250,7 +256,7 @@ function setupNavigationDetection() {
 
     // Restore incoming tab DOM
     const state = getTabState(tabId);
-    while (chatEl.firstChild) chatEl.removeChild(chatEl.firstChild);
+    chatEl.replaceChildren();
     if (state.domSnapshot) chatEl.appendChild(state.domSnapshot);
     syncHintBadge();
 
@@ -270,6 +276,10 @@ function setupNavigationDetection() {
       // Not a LeetCode page — panel is hidden anyway
     }
   });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    tabHistories.delete(tabId);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -288,8 +298,7 @@ async function getMonacoCode(tabId) {
       },
     });
     return results?.[0]?.result ?? '';
-  } catch (err) {
-    console.log('[LeetCoach] getMonacoCode error:', err);
+  } catch (_err) {
     return '';
   }
 }
@@ -370,10 +379,37 @@ async function getSubmissionResult(tabId) {
       },
     });
     return results?.[0]?.result ?? null;
-  } catch (err) {
-    console.log('[LeetCoach] getSubmissionResult error:', err);
+  } catch (_err) {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// fetchContext — shared by sendMessage and handleModeRequest
+// ---------------------------------------------------------------------------
+
+async function fetchContext() {
+  let context = null;
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab) {
+      context = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
+          if (chrome.runtime.lastError) { /* content.js not ready */ }
+          resolve(res ?? null);
+        });
+      });
+      const code = await getMonacoCode(tab.id);
+      const submissionResult = await getSubmissionResult(tab.id);
+      if (context) {
+        context.code = code;
+        context.submissionResult = submissionResult;
+      } else {
+        context = { code, submissionResult };
+      }
+    }
+  } catch (_err) { /* content.js not available */ }
+  return context;
 }
 
 // ---------------------------------------------------------------------------
@@ -400,33 +436,7 @@ async function sendMessage(userText) {
   removeEmptyState();
   appendMessage('user', userText);
 
-  // Get fresh context — base context from content.js, code via scripting (MAIN world)
-  let context = null;
-  let activeTab = null;
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    activeTab = tab ?? null;
-    if (tab) {
-      context = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
-          if (chrome.runtime.lastError) { /* content.js not ready — that's ok */ }
-          resolve(res ?? null);
-        });
-      });
-    }
-  } catch (_err) { /* ignore */ }
-
-  // Always attempt to read Monaco code and failure info directly — independent of content.js
-  if (activeTab) {
-    const code = await getMonacoCode(activeTab.id);
-    const submissionResult = await getSubmissionResult(activeTab.id);
-    if (context) {
-      context.code = code;
-      context.submissionResult = submissionResult;
-    } else {
-      context = { code, submissionResult };
-    }
-  }
+  const context = await fetchContext();
 
   // Create assistant bubble early so text streams in
   const assistantBubble = createMessageBubble('assistant');
@@ -459,11 +469,15 @@ async function sendMessage(userText) {
   // Fetch and stream the response
   let assistantText = '';
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60_000);
     const response = await fetch(API_URL, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
       body:    JSON.stringify(body),
+      signal:  controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -608,51 +622,25 @@ function removeEmptyState() {
 // ---------------------------------------------------------------------------
 
 function buildModeBody(mode, context, hintLevel) {
-  const historySlice = getTabState(activeTabId).history.slice(-10);
   const problem = {
     difficulty:  context?.difficulty  ?? null,
     tags:        context?.tags        ?? [],
     description: context?.description ?? null,
   };
-  const code     = context?.code     ?? '';
-  const language = context?.language ?? null;
-  const userId   = context?.userId   ?? null;
-
+  const code             = context?.code             ?? '';
+  const language         = context?.language         ?? null;
+  const userId           = context?.userId           ?? null;
   const submissionResult = context?.submissionResult ?? null;
-  if (mode === 'hint')    return { mode, problem, code, language, hintLevel, submissionResult, userId };
-  if (mode === 'dsa')     return { mode, problem, code, language, submissionResult, userId };
-  if (mode === 'analyze') return { mode, problem, code, language, submissionResult, userId };
-  return { mode, problem, code, language, history: historySlice, submissionResult, userId }; // chat
+
+  if (mode === 'hint') return { mode, problem, code, language, hintLevel, submissionResult, userId };
+  return { mode, problem, code, language, submissionResult, userId };
 }
 
 async function handleModeRequest(mode) {
   setInputEnabled(false);
   removeEmptyState();
 
-  let context = null;
-  let activeTab = null;
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    activeTab = tab ?? null;
-    if (tab) {
-      context = await new Promise(resolve => chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
-        if (chrome.runtime.lastError) { /* content.js not ready — that's ok */ }
-        resolve(res ?? null);
-      }));
-    }
-  } catch (_) {}
-
-  // Always attempt to read Monaco code and failure info directly — independent of content.js
-  if (activeTab) {
-    const code = await getMonacoCode(activeTab.id);
-    const submissionResult = await getSubmissionResult(activeTab.id);
-    if (context) {
-      context.code = code;
-      context.submissionResult = submissionResult;
-    } else {
-      context = { code, submissionResult };
-    }
-  }
+  const context = await fetchContext();
 
   const labels = { hint: '[ Hint ]', analyze: '[ Analyze Code ]', dsa: '[ DSA Tips ]' };
   appendMessage('user', labels[mode]);
@@ -667,11 +655,15 @@ async function handleModeRequest(mode) {
   let assistantText = '';
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60_000);
     const response = await fetch(API_URL, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
       body:    JSON.stringify(buildModeBody(mode, context, hintLevel)),
+      signal:  controller.signal,
     });
+    clearTimeout(timeoutId);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const reader  = response.body.getReader();
