@@ -1,9 +1,14 @@
 import json
 import os
 import http.client
+import datetime
 import boto3
 
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
+dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
+
+WEEKLY_LIMIT = 100
+TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +272,69 @@ def build_messages(body):
 
 
 # ---------------------------------------------------------------------------
+# Usage tracking
+# ---------------------------------------------------------------------------
+
+def get_week_start():
+    today = datetime.date.today()
+    monday = today - datetime.timedelta(days=today.weekday())
+    return monday.isoformat()
+
+
+def check_and_update_usage(user_id):
+    """Returns True if the request is allowed, False if weekly limit exceeded."""
+    if not user_id:
+        return True
+    try:
+        table = dynamodb.Table(TABLE_NAME)
+        today = datetime.date.today().isoformat()
+        current_monday = get_week_start()
+
+        result = table.get_item(Key={'userId': user_id})
+        item = result.get('Item')
+
+        if item is None:
+            table.put_item(Item={
+                'userId': user_id,
+                'weeklyRequests': 1,
+                'totalRequests': 1,
+                'weekStartDate': current_monday,
+                'firstSeen': today,
+                'lastSeen': today,
+                'tier': 'free',
+            })
+            return True
+
+        if item.get('weekStartDate') != current_monday:
+            # New week — reset weekly counter
+            table.update_item(
+                Key={'userId': user_id},
+                UpdateExpression='SET weeklyRequests = :one, weekStartDate = :monday, lastSeen = :today ADD totalRequests :one2',
+                ExpressionAttributeValues={
+                    ':one': 1,
+                    ':one2': 1,
+                    ':monday': current_monday,
+                    ':today': today,
+                },
+            )
+            return True
+
+        if item.get('weeklyRequests', 0) >= WEEKLY_LIMIT:
+            return False
+
+        table.update_item(
+            Key={'userId': user_id},
+            UpdateExpression='SET lastSeen = :today ADD weeklyRequests :one, totalRequests :one',
+            ExpressionAttributeValues={':one': 1, ':today': today},
+        )
+        return True
+
+    except Exception as e:
+        print(f"DynamoDB error (failing open): {e}")
+        return True
+
+
+# ---------------------------------------------------------------------------
 # Handler
 # ---------------------------------------------------------------------------
 
@@ -274,6 +342,33 @@ def handler(event, context):
     try:
         body = json.loads(event.get('body', '{}'))
         mode = body.get('mode', 'chat')
+
+        user_id = body.get('userId', None)
+
+        if mode == 'usage':
+            usage_data = {'weeklyRequests': 0, 'weekStartDate': get_week_start()}
+            if user_id:
+                try:
+                    table = dynamodb.Table(TABLE_NAME)
+                    result = table.get_item(Key={'userId': user_id})
+                    item = result.get('Item')
+                    if item:
+                        usage_data = {
+                            'weeklyRequests': int(item.get('weeklyRequests', 0)),
+                            'weekStartDate': item.get('weekStartDate', get_week_start()),
+                        }
+                except Exception as e:
+                    print(f"DynamoDB error fetching usage: {e}")
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps(usage_data)]))
+            return
+
+        if not check_and_update_usage(user_id):
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'error': 'weekly_limit_reached',
+                'message': "You've reached your weekly limit of 100 requests. Your limit resets on Monday.",
+                'limit': 100,
+            })]))
+            return
 
         system_prompt, max_tokens = build_prompt_for_mode(mode, body)
         messages = build_messages(body)

@@ -27,7 +27,7 @@ interface for code feedback, hints, and DSA guidance.
 - Monaco code must be read via `chrome.scripting.executeScript` in MAIN world from sidepanel.js — content.js cannot access `window.monaco` (isolated world)
 - Side panel enabled only on leetcode.com/problems/* tabs; auto-opens on icon click
 - Keyboard shortcut Cmd+Shift+L / Ctrl+Shift+L to reopen
-- Lambda response is streamed — `InvokeMode: RESPONSE_STREAM` in template.yaml; chunks posted directly to Lambda Runtime API via chunked HTTP; bootstrap's duplicate buffered post is intercepted by a monkey-patch on `BaseLambdaRuntimeClient.post_invocation_result`
+- Lambda response is streamed — `InvokeMode: RESPONSE_STREAM` in template.yaml; chunks posted directly to Lambda Runtime API via chunked HTTP; bootstrap's duplicate buffered post is intercepted by monkey-patching `runtime_client.post_invocation_result` (the C extension module, not the Python class — the Python class varies between bundled and system awslambdaric versions)
 
 ## Extension Files and Their Roles
 - `manifest.json` — permissions, content scripts, side panel config, keyboard shortcut
@@ -42,12 +42,13 @@ interface for code feedback, hints, and DSA guidance.
 - Single handler in lambda_function.py
 - Receives: `{ mode, message, problem, code, language, history, hintLevel, submissionResult }`
   - `mode`: `"chat"` | `"hint"` | `"analyze"` | `"dsa"`
-  - `problem`: `{ name, number, difficulty, tags, description, slug }`
+  - `problem`: `{ difficulty, tags, description }` (name/number/slug intentionally omitted)
   - `hintLevel`: 1–3 (hint mode only)
   - `submissionResult`: `{ status, input, expected, actual, message }` or null
+  - `history`: last 10 turns (chat only — analyze/hint/dsa send no history)
 - Returns: streamed plain text via chunked transfer encoding to Lambda Runtime API
 - Model routing: hint + dsa → `claude-haiku-4-5-20251001`; analyze + chat → `claude-sonnet-4-6`
-- Token budgets: hint 128, dsa 256, analyze 512, chat 384
+- Token budgets: hint 64, dsa 128, analyze 256, chat 256
 
 ## What the Extension Can Read from LeetCode DOM
 - Problem name and number

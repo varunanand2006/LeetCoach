@@ -8,13 +8,29 @@ Globals:
     MemorySize: 256
 
 Resources:
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: leetcoach-users
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
   ChatFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: backend/
       Handler: lambda_function.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref UsersTable
       Policies:
         - AmazonBedrockFullAccess
+        - AmazonDynamoDBFullAccess
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
@@ -30,3 +46,6 @@ Outputs:
   ChatFunctionUrl:
     Description: "Paste this URL into API_URL in extension/sidepanel.js"
     Value: !GetAtt ChatFunctionUrl.FunctionUrl
+  UsersTableName:
+    Description: "DynamoDB table for user usage tracking"
+    Value: !Ref UsersTable

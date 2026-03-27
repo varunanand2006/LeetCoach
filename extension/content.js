@@ -85,6 +85,10 @@ function getLanguage() {
   );
 }
 
+function getUsername() {
+  return Array.from(document.querySelectorAll('a[href*="/u/"]'))[0]?.href?.split('/u/')[1]?.split('/')[0] ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Context collector
 // ---------------------------------------------------------------------------
@@ -98,6 +102,7 @@ function collectBaseContext() {
     tags:        getTags(),
     description: getDescription(),
     language:    getLanguage(),
+    userId:      getUsername(),
   };
 }
 

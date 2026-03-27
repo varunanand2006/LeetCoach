@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/';
+const WEEKLY_LIMIT = 100;
 
 const LANG_MAP = {
   // Python
@@ -34,6 +35,75 @@ const LANG_MAP = {
   'elixir': 'elixir',
   'racket': 'scheme',
 };
+
+// ---------------------------------------------------------------------------
+// Usage tracking (local, chrome.storage.local)
+// ---------------------------------------------------------------------------
+
+function getThisMonday() {
+  const d = new Date();
+  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diff);
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, '0');
+  const dd = String(monday.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+let weeklyRequestsUsed = 0;
+
+async function loadUsageCount() {
+  const data = await chrome.storage.local.get(['weeklyRequests', 'weekStartDate']);
+  const currentMonday = getThisMonday();
+  if (data.weekStartDate !== currentMonday) {
+    weeklyRequestsUsed = 0;
+    await chrome.storage.local.set({ weeklyRequests: 0, weekStartDate: currentMonday });
+  } else {
+    weeklyRequestsUsed = data.weeklyRequests ?? 0;
+  }
+  updateUsageIndicator();
+}
+
+async function fetchUsageFromServer(userId) {
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'usage', userId }),
+    });
+    if (!response.ok) return;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    const data = JSON.parse(text);
+    if (typeof data.weeklyRequests === 'number') {
+      const currentMonday = getThisMonday();
+      weeklyRequestsUsed = data.weekStartDate === currentMonday ? data.weeklyRequests : 0;
+      await chrome.storage.local.set({ weeklyRequests: weeklyRequestsUsed, weekStartDate: currentMonday });
+      updateUsageIndicator();
+    }
+  } catch (_e) { /* fail silently — local count remains */ }
+}
+
+function updateUsageIndicator() {
+  const el = document.getElementById('usage-indicator');
+  if (!el) return;
+  const remaining = Math.max(0, WEEKLY_LIMIT - weeklyRequestsUsed);
+  el.dataset.tooltip = `${remaining} prompts left`;
+}
+
+async function incrementUsage() {
+  weeklyRequestsUsed++;
+  await chrome.storage.local.set({ weeklyRequests: weeklyRequestsUsed, weekStartDate: getThisMonday() });
+  updateUsageIndicator();
+}
 
 // ---------------------------------------------------------------------------
 // State
@@ -72,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
   hintLevelBadgeEl = document.getElementById('hint-level-badge');
 
   initPanel();
+  loadUsageCount();
   setupNavigationDetection();
 
   modeBtnHint.addEventListener('click', () => handleModeRequest('hint'));
@@ -119,6 +190,7 @@ async function initPanel() {
     getTabState(activeTabId).slug = context.slug;
     updateHeader(context);
     removeEmptyState();
+    if (context.userId) fetchUsageFromServer(context.userId);
   } catch (_err) {
     // content.js not available — leave default empty-state message
   }
@@ -381,6 +453,7 @@ async function sendMessage(userText) {
     language:    context?.language    ?? null,
     history:     historySlice,
     submissionResult: context?.submissionResult ?? null,
+    userId:      context?.userId      ?? null,
   };
 
   // Fetch and stream the response
@@ -416,6 +489,20 @@ async function sendMessage(userText) {
       scrollToBottom();
     }
 
+    // Check for rate limit error streamed as JSON
+    try {
+      const parsed = JSON.parse(assistantText);
+      if (parsed.error === 'weekly_limit_reached') {
+        assistantBubble.remove();
+        showLimitWarning();
+        setInputEnabled(true);
+        inputEl.focus();
+        return;
+      }
+    } catch (_e) { /* normal text response */ }
+
+    incrementUsage();
+
     // Commit both turns to history
     getTabState(activeTabId).history.push(
       { role: 'user',      content: userText      },
@@ -428,6 +515,18 @@ async function sendMessage(userText) {
 
   setInputEnabled(true);
   inputEl.focus();
+}
+
+// ---------------------------------------------------------------------------
+// showLimitWarning
+// ---------------------------------------------------------------------------
+
+function showLimitWarning() {
+  const el = document.createElement('div');
+  el.classList.add('message', 'warning');
+  el.textContent = "You've reached your weekly limit of 100 requests. Your limit resets on Monday!";
+  chatEl.appendChild(el);
+  scrollToBottom();
 }
 
 // ---------------------------------------------------------------------------
@@ -517,12 +616,13 @@ function buildModeBody(mode, context, hintLevel) {
   };
   const code     = context?.code     ?? '';
   const language = context?.language ?? null;
+  const userId   = context?.userId   ?? null;
 
   const submissionResult = context?.submissionResult ?? null;
-  if (mode === 'hint')    return { mode, problem, code, language, hintLevel, submissionResult };
-  if (mode === 'dsa')     return { mode, problem, code, language, submissionResult };
-  if (mode === 'analyze') return { mode, problem, code, language, submissionResult };
-  return { mode, problem, code, language, history: historySlice, submissionResult }; // chat
+  if (mode === 'hint')    return { mode, problem, code, language, hintLevel, submissionResult, userId };
+  if (mode === 'dsa')     return { mode, problem, code, language, submissionResult, userId };
+  if (mode === 'analyze') return { mode, problem, code, language, submissionResult, userId };
+  return { mode, problem, code, language, history: historySlice, submissionResult, userId }; // chat
 }
 
 async function handleModeRequest(mode) {
@@ -589,6 +689,20 @@ async function handleModeRequest(mode) {
       assistantBubble.innerHTML = renderMarkdown(assistantText);
       scrollToBottom();
     }
+
+    // Check for rate limit error streamed as JSON
+    try {
+      const parsed = JSON.parse(assistantText);
+      if (parsed.error === 'weekly_limit_reached') {
+        assistantBubble.remove();
+        showLimitWarning();
+        setInputEnabled(true);
+        inputEl.focus();
+        return;
+      }
+    } catch (_e) { /* normal text response */ }
+
+    incrementUsage();
 
     if (mode === 'hint' && hintLevel < 3) {
       state.hintLevel++;
