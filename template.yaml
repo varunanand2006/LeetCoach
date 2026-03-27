@@ -1,6 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
+Parameters:
+  AlertEmail:
+    Type: String
+    Description: "Email address for billing alerts and kill-switch notifications"
+
 Globals:
   Function:
     Runtime: python3.11
@@ -8,6 +13,11 @@ Globals:
     MemorySize: 256
 
 Resources:
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB
+  # ---------------------------------------------------------------------------
+
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -20,11 +30,56 @@ Resources:
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
+  # ---------------------------------------------------------------------------
+  # Lambda execution role — declared explicitly so Budget Actions can reference it
+  # ---------------------------------------------------------------------------
+
+  ChatFunctionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # CloudWatch Logs (write function logs)
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockInvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: bedrock:InvokeModelWithResponseStream
+                Resource:
+                  # Cross-region inference profiles (us.anthropic.* model IDs)
+                  - !Sub 'arn:aws:bedrock:us-east-1:${AWS::AccountId}:inference-profile/us.anthropic.claude-*'
+                  # Underlying foundation models Bedrock routes to internally
+                  - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-*'
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt UsersTable.Arn
+
+  # ---------------------------------------------------------------------------
+  # Lambda function
+  # ---------------------------------------------------------------------------
+
   ChatFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: backend/
       Handler: lambda_function.handler
+      Role: !GetAtt ChatFunctionExecutionRole.Arn
       Environment:
         Variables:
           TABLE_NAME: !Ref UsersTable
@@ -33,22 +88,6 @@ Resources:
           API_KEY: "4d36f3f48a48b7447c6344c503453500ff4675dc33ddce9453e973ddb1ebe71d"
           HAIKU_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
           SONNET_MODEL_ID: "us.anthropic.claude-sonnet-4-6"
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action: bedrock:InvokeModelWithResponseStream
-              Resource:
-                # Cross-region inference profiles (us.anthropic.* model IDs)
-                - !Sub 'arn:aws:bedrock:us-east-1:${AWS::AccountId}:inference-profile/us.anthropic.claude-*'
-                # Underlying foundation models Bedrock routes to internally
-                - 'arn:aws:bedrock:*::foundation-model/anthropic.claude-*'
-        - Statement:
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:PutItem
-                - dynamodb:UpdateItem
-              Resource: !GetAtt UsersTable.Arn
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
@@ -60,6 +99,92 @@ Resources:
             - 'x-api-key'
           AllowMethods:
             - 'POST'
+
+  # ---------------------------------------------------------------------------
+  # Billing kill switch
+  #
+  # When actual Bedrock spend hits $10/month, AWS Budgets automatically attaches
+  # BedrockKillSwitchPolicy to ChatFunctionExecutionRole. That Deny overrides all
+  # Allow policies — Bedrock calls fail immediately and the app shuts down.
+  #
+  # To re-enable: go to IAM → Roles → ChatFunctionExecutionRole → detach
+  # the "leetcoach-bedrock-killswitch" policy.
+  # ---------------------------------------------------------------------------
+
+  # The kill switch: a Deny that, once attached, blocks all Bedrock calls
+  BedrockKillSwitchPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Action: bedrock:InvokeModelWithResponseStream
+            Resource: '*'
+
+  # IAM role that AWS Budgets assumes in order to attach the kill switch policy
+  BudgetActionExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AttachKillSwitch
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: iam:AttachRolePolicy
+                Resource: !GetAtt ChatFunctionExecutionRole.Arn
+
+  # Budget: $10/month total AWS cost
+  # - Email warning at $7 (70%)
+  # - Kill switch fires at $10 (100%)
+  MonthlyBedrockBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub 'LeetCoach-Bedrock-${AWS::StackName}'
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: 10
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 70
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlertEmail
+
+  # Action: attach the kill switch when actual spend reaches $10
+  BedrockKillSwitchAction:
+    Type: AWS::Budgets::BudgetsAction
+    Properties:
+      BudgetName: !Ref MonthlyBedrockBudget
+      ActionType: APPLY_IAM_POLICY
+      ActionThreshold:
+        Type: PERCENTAGE
+        Value: 100
+      Definition:
+        IamActionDefinition:
+          PolicyArn: !Ref BedrockKillSwitchPolicy
+          Roles:
+            - !Ref ChatFunctionExecutionRole
+      ExecutionRoleArn: !GetAtt BudgetActionExecutionRole.Arn
+      ApprovalModel: AUTOMATIC
+      NotificationType: ACTUAL
+      Subscribers:
+        - Address: !Ref AlertEmail
+          Type: EMAIL
 
 Outputs:
   ChatFunctionUrl:
