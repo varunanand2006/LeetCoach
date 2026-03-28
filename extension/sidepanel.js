@@ -235,7 +235,7 @@ function setupNavigationDetection() {
         state.history = [];
         state.domSnapshot = null;
         state.hintLevel = 1;
-        chatEl.innerHTML = '';
+        chatEl.replaceChildren();
         updateHeader(context);
         syncHintBadge();
       }
@@ -452,12 +452,9 @@ async function sendMessage(userText) {
     mode:    'chat',
     message: userText,
     problem: {
-      name:        context?.title       ?? null,
-      number:      context?.number      ?? null,
       difficulty:  context?.difficulty  ?? null,
       tags:        context?.tags        ?? [],
       description: context?.description ?? null,
-      slug:        context?.slug        ?? null,
     },
     code:        context?.code        ?? '',
     language:    context?.language    ?? null,
@@ -552,7 +549,7 @@ function clearChat() {
   state.history = [];
   state.domSnapshot = null;
   state.hintLevel = 1;
-  chatEl.innerHTML = '';
+  chatEl.replaceChildren();
   syncHintBadge();
   inputEl.focus();
 }
