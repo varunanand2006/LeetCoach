@@ -7,3 +7,7 @@ node_modules/
 *.zip
 .aws/
 samconfig.toml
+.claude/
+.mcp.json
+key.json
+budgets-policy.json

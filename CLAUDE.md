@@ -79,7 +79,6 @@ Not implemented (listed in original spec but not built):
 ## AWS Services
 - Bedrock (Claude Haiku + Sonnet) — AI responses
 - Lambda — backend compute with Function URL (no API Gateway)
-- Lambda Function URL: `https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/`
 - CloudWatch — logging
 - DynamoDB — `leetcoach-users` usage tracking table
 - IAM — Lambda execution role with `AmazonBedrockFullAccess` + `AmazonDynamoDBFullAccess`
