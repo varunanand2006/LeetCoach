@@ -5,6 +5,10 @@ Parameters:
   AlertEmail:
     Type: String
     Description: "Email address for billing alerts and kill-switch notifications"
+  ApiKey:
+    Type: String
+    NoEcho: true
+    Description: "Shared secret validated against x-api-key header sent by the extension"
 
 Globals:
   Function:
@@ -83,9 +87,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref UsersTable
-          # Shared secret validated against x-api-key header sent by the extension.
-          # Set this to a strong random value and mirror it in sidepanel.js API_KEY.
-          API_KEY: "4d36f3f48a48b7447c6344c503453500ff4675dc33ddce9453e973ddb1ebe71d"
+          API_KEY: !Ref ApiKey
           HAIKU_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
           SONNET_MODEL_ID: "us.anthropic.claude-sonnet-4-6"
       FunctionUrlConfig:
