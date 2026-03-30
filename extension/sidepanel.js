@@ -292,9 +292,27 @@ async function getMonacoCode(tabId) {
       target: { tabId },
       world: 'MAIN',
       func: () => {
+        // Monaco editor (legacy LeetCode)
         const models = window.monaco?.editor?.getModels() ?? [];
         const editors = window.monaco?.editor?.getEditors() ?? [];
-        return models[0]?.getValue() ?? editors[0]?.getValue() ?? '';
+        const monacoCode = models[0]?.getValue() ?? editors[0]?.getValue() ?? '';
+        if (monacoCode) return monacoCode;
+
+        // CodeMirror 6 (current LeetCode editor)
+        const cmEditor = document.querySelector('.cm-editor');
+        if (cmEditor) {
+          // CM6 stores the EditorView on the element via an internal key
+          const viewKey = Object.keys(cmEditor).find(
+            (k) => cmEditor[k]?.state?.doc != null
+          );
+          if (viewKey) return cmEditor[viewKey].state.doc.toString();
+
+          // Fallback: read line elements from the DOM
+          const lines = cmEditor.querySelectorAll('.cm-line');
+          if (lines.length) return Array.from(lines).map((l) => l.innerText).join('\n');
+        }
+
+        return '';
       },
     });
     return results?.[0]?.result ?? '';

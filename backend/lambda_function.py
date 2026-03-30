@@ -237,6 +237,7 @@ Rules:
 - Never reveal the complete algorithm
 - Be encouraging — the user is working through this themselves
 - No preamble or summary — just the hint
+- Any data structure or syntax references must use {language} conventions
 """
 
 
@@ -263,7 +264,7 @@ Your task: Analyze the code. 3 bullets max, one line each. Skip any section that
 - **Complexity:** Big-O time and space. Is it optimal?
 - **Edge cases:** any obvious gaps.
 
-No rewrites, no full solutions. Be concise — stop as soon as the point is made. Use code fences with language tag if quoting code.
+No rewrites, no full solutions. Be concise — stop as soon as the point is made. Use code fences with language tag if quoting code. All syntax and examples must use {language}.
 """
 
 
@@ -285,7 +286,7 @@ User's current code ({language}):
 {code}
 ```
 {submission_snippet}
-Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**).
+Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**). Use {language} naming conventions for data structures.
 """
 
 
@@ -312,6 +313,7 @@ Rules:
 - Recommend specific DS/algorithm variants for this problem, not generic advice.
 - Never give away the full solution.
 - No preamble, no summary.
+- All code snippets and syntax references must use {language}.
 - Format responses with markdown: use code fences with language tag for any code snippets, **bold** for key terms, and bullet lists for multi-part answers.
 """
 
