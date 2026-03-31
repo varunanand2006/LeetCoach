@@ -25,6 +25,7 @@ interface for code feedback, hints, and DSA guidance.
 - Session-only chat memory (no persistence in v1)
 - Haiku for hint/dsa (cheap, short responses); Sonnet for analyze/chat (code review, freeform)
 - Monaco code must be read via `chrome.scripting.executeScript` in MAIN world from sidepanel.js — content.js cannot access `window.monaco` (isolated world)
+- LeetCode migrated from Monaco to CodeMirror 6 (CM6); `getMonacoCode` tries Monaco first, then CM6 via the internal EditorView key on `.cm-editor` (`Object.keys(el).find(k => el[k]?.state?.doc)`), then falls back to reading `.cm-line` DOM elements
 - Side panel enabled only on leetcode.com/problems/* tabs; auto-opens on icon click
 - Keyboard shortcut Cmd+Shift+L / Ctrl+Shift+L to reopen
 - Lambda response is streamed — `InvokeMode: RESPONSE_STREAM` in template.yaml; chunks posted directly to Lambda Runtime API via chunked HTTP; bootstrap's duplicate buffered post is intercepted by monkey-patching `runtime_client.post_invocation_result` (the C extension module, not the Python class — the Python class varies between bundled and system awslambdaric versions)

@@ -295,7 +295,10 @@ async function getMonacoCode(tabId) {
         // Monaco editor (legacy LeetCode)
         const models = window.monaco?.editor?.getModels() ?? [];
         const editors = window.monaco?.editor?.getEditors() ?? [];
-        const monacoCode = models[0]?.getValue() ?? editors[0]?.getValue() ?? '';
+        const monacoCode =
+          models.map((m) => m.getValue()).find((v) => v.length > 0) ??
+          editors[0]?.getValue() ??
+          '';
         if (monacoCode) return monacoCode;
 
         // CodeMirror 6 (current LeetCode editor)
@@ -656,6 +659,16 @@ async function handleModeRequest(mode) {
   removeEmptyState();
 
   const context = await fetchContext();
+
+  if (!context?.code && mode === 'analyze') {
+    const el = createMessageBubble('assistant');
+    el.textContent = "No code detected in the editor. Write some code first, then try again.";
+    chatEl.appendChild(el);
+    scrollToBottom();
+    setInputEnabled(true);
+    inputEl.focus();
+    return;
+  }
 
   const labels = { hint: '[ Hint ]', analyze: '[ Analyze Code ]', dsa: '[ DSA Tips ]' };
   appendMessage('user', labels[mode]);
