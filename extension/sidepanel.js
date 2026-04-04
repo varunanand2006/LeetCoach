@@ -562,7 +562,7 @@ function createMessageBubble(role) {
 function updateHeader(context) {
   const number = context?.number ?? '';
   const name = context?.title ?? '';
-  problemNameEl.textContent = number ? `${number}. ${name}` : name;
+  problemNameEl.textContent = number ? `${number}. ${name}` : (name || 'LeetCoach');
 }
 
 function scrollToBottom() {
