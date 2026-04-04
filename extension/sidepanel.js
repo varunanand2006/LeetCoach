@@ -128,23 +128,19 @@ function getTabState(tabId) {
 }
 
 // ---------------------------------------------------------------------------
-// DOM references (set after DOMContentLoaded)
+// Initialisation
 // ---------------------------------------------------------------------------
 
 let chatEl, inputEl, problemNameEl;
 let modeBtnHint, modeBtnAnalyze, modeBtnDsa, hintLevelBadgeEl;
 
-// ---------------------------------------------------------------------------
-// Initialisation
-// ---------------------------------------------------------------------------
-
 document.addEventListener('DOMContentLoaded', () => {
-  chatEl          = document.getElementById('chat');
-  inputEl         = document.getElementById('input');
-  problemNameEl   = document.getElementById('problem-name');
-  modeBtnHint     = document.getElementById('btn-hint');
-  modeBtnAnalyze  = document.getElementById('btn-analyze');
-  modeBtnDsa      = document.getElementById('btn-dsa');
+  chatEl           = document.getElementById('chat');
+  inputEl          = document.getElementById('input');
+  problemNameEl    = document.getElementById('problem-name');
+  modeBtnHint      = document.getElementById('btn-hint');
+  modeBtnAnalyze   = document.getElementById('btn-analyze');
+  modeBtnDsa       = document.getElementById('btn-dsa');
   hintLevelBadgeEl = document.getElementById('hint-level-badge');
 
   initPanel();
@@ -168,12 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
   });
-
 });
-
-// ---------------------------------------------------------------------------
-// initPanel
-// ---------------------------------------------------------------------------
 
 async function initPanel() {
   try {
@@ -405,10 +396,6 @@ async function getSubmissionResult(tabId) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// fetchContext — shared by sendMessage and handleModeRequest
-// ---------------------------------------------------------------------------
-
 async function fetchContext() {
   let context = null;
   try {
@@ -441,59 +428,52 @@ async function sendMessage(userText) {
   userText = (userText ?? '').trim();
   if (!userText) return;
 
-  // Clear-chat shortcut phrases
   const clearPhrases = ['start over', 'clear chat', 'clear', 'reset'];
   if (clearPhrases.includes(userText.toLowerCase())) {
     clearChat();
     return;
   }
 
-  // Disable input while processing
   setInputEnabled(false);
   inputEl.value = '';
   inputEl.style.height = 'auto';
 
-  // Append user bubble immediately so it appears before any async work
   removeEmptyState();
   appendMessage('user', userText);
 
   const context = await fetchContext();
 
-  // Create assistant bubble early so text streams in
   const assistantBubble = createMessageBubble('assistant');
   assistantBubble.innerHTML = '<i class="gg-spinner"></i>';
   chatEl.appendChild(assistantBubble);
   scrollToBottom();
 
-  // Trim history before sending
   const historySlice = getTabState(activeTabId).history.slice(-10);
 
-  // Build request body
   const body = {
-    mode:    'chat',
+    mode: 'chat',
     message: userText,
     problem: {
-      difficulty:  context?.difficulty  ?? null,
-      tags:        context?.tags        ?? [],
+      difficulty: context?.difficulty ?? null,
+      tags: context?.tags ?? [],
       description: context?.description ?? null,
     },
-    code:        context?.code        ?? '',
-    language:    context?.language    ?? null,
-    history:     historySlice,
+    code: context?.code ?? '',
+    language: context?.language ?? null,
+    history: historySlice,
     submissionResult: context?.submissionResult ?? null,
-    userId:      context?.userId      ?? null,
+    userId: context?.userId ?? null,
   };
 
-  // Fetch and stream the response
   let assistantText = '';
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60_000);
     const response = await fetch(API_URL, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-      body:    JSON.stringify(body),
-      signal:  controller.signal,
+      body: JSON.stringify(body),
+      signal: controller.signal,
     });
     clearTimeout(timeoutId);
 
@@ -501,7 +481,7 @@ async function sendMessage(userText) {
       throw new Error(`HTTP ${response.status}`);
     }
 
-    const reader  = response.body.getReader();
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
     while (true) {
@@ -513,7 +493,6 @@ async function sendMessage(userText) {
       scrollToBottom();
     }
 
-    // Flush any remaining bytes
     const tail = decoder.decode();
     if (tail) {
       assistantText += tail;
@@ -535,9 +514,8 @@ async function sendMessage(userText) {
 
     incrementUsage();
 
-    // Commit both turns to history
     getTabState(activeTabId).history.push(
-      { role: 'user',      content: userText      },
+      { role: 'user', content: userText },
       { role: 'assistant', content: assistantText },
     );
   } catch (_err) {
@@ -549,10 +527,6 @@ async function sendMessage(userText) {
   inputEl.focus();
 }
 
-// ---------------------------------------------------------------------------
-// showLimitWarning
-// ---------------------------------------------------------------------------
-
 function showLimitWarning() {
   const el = document.createElement('div');
   el.classList.add('message', 'warning');
@@ -560,10 +534,6 @@ function showLimitWarning() {
   chatEl.appendChild(el);
   scrollToBottom();
 }
-
-// ---------------------------------------------------------------------------
-// clearChat
-// ---------------------------------------------------------------------------
 
 function clearChat() {
   const state = getTabState(activeTabId);
@@ -575,14 +545,6 @@ function clearChat() {
   inputEl.focus();
 }
 
-// ---------------------------------------------------------------------------
-// appendMessage
-// ---------------------------------------------------------------------------
-
-/**
- * Creates a message bubble, appends it to #chat, scrolls to bottom,
- * and returns the element.
- */
 function appendMessage(role, text) {
   const el = createMessageBubble(role);
   el.textContent = text;
@@ -591,39 +553,27 @@ function appendMessage(role, text) {
   return el;
 }
 
-// ---------------------------------------------------------------------------
-// createMessageBubble
-// ---------------------------------------------------------------------------
-
 function createMessageBubble(role) {
   const el = document.createElement('div');
   el.classList.add('message', role);
   return el;
 }
 
-// ---------------------------------------------------------------------------
-// updateHeader
-// ---------------------------------------------------------------------------
-
 function updateHeader(context) {
   const number = context?.number ?? '';
-  const name   = context?.title  ?? '';
+  const name = context?.title ?? '';
   problemNameEl.textContent = number ? `${number}. ${name}` : name;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function scrollToBottom() {
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
 function setInputEnabled(enabled) {
-  inputEl.disabled        = !enabled;
-  modeBtnHint.disabled    = !enabled;
+  inputEl.disabled = !enabled;
+  modeBtnHint.disabled = !enabled;
   modeBtnAnalyze.disabled = !enabled;
-  modeBtnDsa.disabled     = !enabled;
+  modeBtnDsa.disabled = !enabled;
 }
 
 function syncHintBadge() {
@@ -641,13 +591,13 @@ function removeEmptyState() {
 
 function buildModeBody(mode, context, hintLevel) {
   const problem = {
-    difficulty:  context?.difficulty  ?? null,
-    tags:        context?.tags        ?? [],
+    difficulty: context?.difficulty ?? null,
+    tags: context?.tags ?? [],
     description: context?.description ?? null,
   };
-  const code             = context?.code             ?? '';
-  const language         = context?.language         ?? null;
-  const userId           = context?.userId           ?? null;
+  const code = context?.code ?? '';
+  const language = context?.language ?? null;
+  const userId = context?.userId ?? null;
   const submissionResult = context?.submissionResult ?? null;
 
   if (mode === 'hint') return { mode, problem, code, language, hintLevel, submissionResult, userId };
@@ -686,15 +636,15 @@ async function handleModeRequest(mode) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60_000);
     const response = await fetch(API_URL, {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-      body:    JSON.stringify(buildModeBody(mode, context, hintLevel)),
-      signal:  controller.signal,
+      body: JSON.stringify(buildModeBody(mode, context, hintLevel)),
+      signal: controller.signal,
     });
     clearTimeout(timeoutId);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const reader  = response.body.getReader();
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
     while (true) {
       const { done, value } = await reader.read();
@@ -730,8 +680,8 @@ async function handleModeRequest(mode) {
     }
 
     state.history.push(
-      { role: 'user',      content: labels[mode]    },
-      { role: 'assistant', content: assistantText   },
+      { role: 'user', content: labels[mode] },
+      { role: 'assistant', content: assistantText },
     );
   } catch (_) {
     assistantBubble.textContent = 'Error generating response. Please try again.';

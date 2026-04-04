@@ -1,9 +1,5 @@
 // content.js - DOM reading only, no UI rendering, no fetch calls
 
-// ---------------------------------------------------------------------------
-// Problem context readers
-// ---------------------------------------------------------------------------
-
 function getSlug() {
   // e.g. /problems/two-sum/ → "two-sum"
   return window.location.pathname.split('/')[2] ?? null;
@@ -24,7 +20,6 @@ function getRawTitle() {
 
   return null;
 }
-
 
 function getDifficulty() {
   // Target elements whose class contains "text-difficulty-" (e.g. text-difficulty-easy)
@@ -58,10 +53,6 @@ function getDescription() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Language dropdown
-// ---------------------------------------------------------------------------
-
 function getLanguage() {
   // Ant Design select used by LeetCode's language picker
   return (
@@ -75,12 +66,8 @@ function getUsername() {
   return Array.from(document.querySelectorAll('a[href*="/u/"]'))[0]?.href?.split('/u/')[1]?.split('/')[0] ?? null;
 }
 
-// ---------------------------------------------------------------------------
-// Context collector
-// ---------------------------------------------------------------------------
-
 function collectBaseContext() {
-  const rawTitle    = getRawTitle();
+  const rawTitle = getRawTitle();
   const numberMatch = rawTitle?.match(/^(\d+)\./);
   return {
     slug:        getSlug(),
@@ -93,10 +80,6 @@ function collectBaseContext() {
     userId:      getUsername(),
   };
 }
-
-// ---------------------------------------------------------------------------
-// Message listener
-// ---------------------------------------------------------------------------
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'GET_BASE_CONTEXT') {
