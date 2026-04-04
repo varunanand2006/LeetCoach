@@ -12,7 +12,7 @@ WEEKLY_LIMIT = 100
 TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
 
 # Model IDs — override via Lambda environment variables when Anthropic deprecates a version
-HAIKU_MODEL_ID  = os.environ.get('HAIKU_MODEL_ID',  'us.anthropic.claude-haiku-4-5-20251001-v1:0')
+HAIKU_MODEL_ID = os.environ.get('HAIKU_MODEL_ID', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
 SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
 
 # Shared secret sent by the extension as x-api-key. Set API_KEY in the Lambda
@@ -21,12 +21,12 @@ SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-
 API_KEY = os.environ.get('API_KEY', '')
 
 # Input validation limits
-VALID_MODES       = {'chat', 'hint', 'analyze', 'dsa', 'usage'}
-MAX_CODE_BYTES    = 10_000
-MAX_DESC_BYTES    = 5_000
-MAX_MSG_BYTES     = 2_000
+VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'usage'}
+MAX_CODE_BYTES = 10_000
+MAX_DESC_BYTES = 5_000
+MAX_MSG_BYTES = 2_000
 MAX_HISTORY_TURNS = 10
-_USERID_RE        = re.compile(r'^[a-zA-Z0-9_\-\.]{1,50}$')
+_USERID_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,50}$')
 
 
 # ---------------------------------------------------------------------------
@@ -98,12 +98,10 @@ def _bedrock_text_chunks(stream):
 
 def validate_and_sanitize_body(body):
     """Sanitize request body in-place. Truncates oversized fields."""
-    # Truncate code
     code = body.get('code', '')
     if isinstance(code, str) and len(code.encode('utf-8')) > MAX_CODE_BYTES:
         body['code'] = code.encode('utf-8')[:MAX_CODE_BYTES].decode('utf-8', errors='ignore')
 
-    # Truncate problem description and sanitize tags
     problem = body.get('problem')
     if isinstance(problem, dict):
         desc = problem.get('description', '')
@@ -113,12 +111,10 @@ def validate_and_sanitize_body(body):
         if isinstance(tags, list):
             problem['tags'] = [t[:100] for t in tags if isinstance(t, str)][:20]
 
-    # Truncate user message
     msg = body.get('message', '')
     if isinstance(msg, str) and len(msg.encode('utf-8')) > MAX_MSG_BYTES:
         body['message'] = msg.encode('utf-8')[:MAX_MSG_BYTES].decode('utf-8', errors='ignore')
 
-    # Clamp hintLevel to 1–3
     hl = body.get('hintLevel', 1)
     if not isinstance(hl, int) or hl not in (1, 2, 3):
         try:
@@ -126,36 +122,19 @@ def validate_and_sanitize_body(body):
         except (TypeError, ValueError):
             body['hintLevel'] = 1
 
-    # Limit history depth
     history = body.get('history', [])
     if isinstance(history, list):
         body['history'] = history[-MAX_HISTORY_TURNS:]
     else:
         body['history'] = []
 
-    # Validate userId — reject anything that doesn't look like a LeetCode username
     user_id = body.get('userId')
     if user_id is not None and (not isinstance(user_id, str) or not _USERID_RE.match(user_id)):
         body['userId'] = None
 
 
 # ---------------------------------------------------------------------------
-# Prompt dispatcher
-# ---------------------------------------------------------------------------
-
-def build_prompt_for_mode(mode, body):
-    """Returns (system_prompt: str, max_tokens: int)."""
-    if mode == 'hint':
-        return build_hint_prompt(body), 64
-    if mode == 'analyze':
-        return build_analyze_prompt(body), 256
-    if mode == 'dsa':
-        return build_dsa_prompt(body), 128
-    return build_chat_prompt(body), 256  # 'chat' or unknown
-
-
-# ---------------------------------------------------------------------------
-# Submission result formatter
+# Per-mode system prompts
 # ---------------------------------------------------------------------------
 
 def format_submission_result(result):
@@ -188,9 +167,15 @@ def format_submission_result(result):
     return f"\nLast submission: {status}\n"
 
 
-# ---------------------------------------------------------------------------
-# Per-mode system prompts
-# ---------------------------------------------------------------------------
+def build_prompt_for_mode(mode, body):
+    if mode == 'hint':
+        return build_hint_prompt(body), 64
+    if mode == 'analyze':
+        return build_analyze_prompt(body), 256
+    if mode == 'dsa':
+        return build_dsa_prompt(body), 128
+    return build_chat_prompt(body), 256  # 'chat' or unknown
+
 
 def build_hint_prompt(body):
     problem = body.get('problem', {})
@@ -264,7 +249,7 @@ Your task: Analyze the code. 3 bullets max, one line each. Skip any section that
 - **Complexity:** Big-O time and space. Is it optimal?
 - **Edge cases:** any obvious gaps.
 
-No rewrites, no full solutions. Be concise — stop as soon as the point is made. Use code fences with language tag if quoting code. All syntax and examples must use {language}.
+No rewrites, no full solutions. Be concise — stop as soon as the point is made. Use ```{language} fences if quoting code. Never write code in any language other than {language}.
 """
 
 
@@ -286,7 +271,7 @@ User's current code ({language}):
 {code}
 ```
 {submission_snippet}
-Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**). Use {language} naming conventions for data structures.
+Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**). Use {language} naming conventions for data structures. If the last submission shows a TLE or MLE, factor the complexity requirement into your recommendation.
 """
 
 
@@ -313,14 +298,10 @@ Rules:
 - Recommend specific DS/algorithm variants for this problem, not generic advice.
 - Never give away the full solution.
 - No preamble, no summary.
-- All code snippets and syntax references must use {language}.
-- Format responses with markdown: use code fences with language tag for any code snippets, **bold** for key terms, and bullet lists for multi-part answers.
+- Never write code in any language other than {language} — not even for quick examples.
+- Format responses with markdown: use ```{language} fences for any code snippets, **bold** for key terms, and bullet lists for multi-part answers.
 """
 
-
-# ---------------------------------------------------------------------------
-# Message builder
-# ---------------------------------------------------------------------------
 
 def build_messages(body):
     mode = body.get('mode', 'chat')
@@ -407,7 +388,6 @@ def check_and_update_usage(user_id):
 
 def handler(event, context):
     try:
-        # --- API key authentication ---
         # Lambda Function URL lowercases all header names.
         if API_KEY:
             headers = event.get('headers') or {}
@@ -421,7 +401,6 @@ def handler(event, context):
         body = json.loads(event.get('body', '{}'))
         mode = body.get('mode', 'chat')
 
-        # --- Mode whitelist ---
         if mode not in VALID_MODES:
             _stream_to_runtime(context.aws_request_id, iter([json.dumps({
                 'error': 'invalid_request',
@@ -429,7 +408,6 @@ def handler(event, context):
             })]))
             return
 
-        # --- Sanitize inputs ---
         validate_and_sanitize_body(body)
         user_id = body.get('userId', None)
 
