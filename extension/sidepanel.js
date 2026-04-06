@@ -8,6 +8,7 @@ const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.o
 // Must match the API_KEY environment variable set on the Lambda (template.yaml).
 const API_KEY = 'fd6c9ff374bc5801ac6e2c1bf80cec7c326dec771f325a4e7d96532b607e7b5d';
 const WEEKLY_LIMIT = 100;
+const CLEAR_PHRASES = ['start over', 'clear chat', 'clear', 'reset'];
 
 const LANG_MAP = {
   // Python
@@ -428,8 +429,7 @@ async function sendMessage(userText) {
   userText = (userText ?? '').trim();
   if (!userText) return;
 
-  const clearPhrases = ['start over', 'clear chat', 'clear', 'reset'];
-  if (clearPhrases.includes(userText.toLowerCase())) {
+  if (CLEAR_PHRASES.includes(userText.toLowerCase())) {
     clearChat();
     return;
   }
@@ -448,8 +448,6 @@ async function sendMessage(userText) {
   chatEl.appendChild(assistantBubble);
   scrollToBottom();
 
-  const historySlice = getTabState(activeTabId).history.slice(-10);
-
   const body = {
     mode: 'chat',
     message: userText,
@@ -460,11 +458,23 @@ async function sendMessage(userText) {
     },
     code: context?.code ?? '',
     language: context?.language ?? null,
-    history: historySlice,
+    history: getTabState(activeTabId).history.slice(-10),
     submissionResult: context?.submissionResult ?? null,
     userId: context?.userId ?? null,
   };
 
+  await streamResponse(body, assistantBubble, (assistantText) => {
+    getTabState(activeTabId).history.push(
+      { role: 'user', content: userText },
+      { role: 'assistant', content: assistantText },
+    );
+  });
+
+  setInputEnabled(true);
+  inputEl.focus();
+}
+
+async function streamResponse(body, assistantBubble, onSuccess) {
   let assistantText = '';
   try {
     const controller = new AbortController();
@@ -477,9 +487,7 @@ async function sendMessage(userText) {
     });
     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -487,8 +495,7 @@ async function sendMessage(userText) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      assistantText += chunk;
+      assistantText += decoder.decode(value, { stream: true });
       assistantBubble.innerHTML = renderMarkdown(assistantText);
       scrollToBottom();
     }
@@ -506,25 +513,16 @@ async function sendMessage(userText) {
       if (parsed.error === 'weekly_limit_reached') {
         assistantBubble.remove();
         showLimitWarning();
-        setInputEnabled(true);
-        inputEl.focus();
         return;
       }
     } catch (_e) { /* normal text response */ }
 
     incrementUsage();
-
-    getTabState(activeTabId).history.push(
-      { role: 'user', content: userText },
-      { role: 'assistant', content: assistantText },
-    );
+    onSuccess(assistantText);
   } catch (_err) {
     assistantBubble.textContent = 'Error generating response. Please try again.';
     scrollToBottom();
   }
-
-  setInputEnabled(true);
-  inputEl.focus();
 }
 
 function showLimitWarning() {
@@ -577,7 +575,7 @@ function setInputEnabled(enabled) {
 }
 
 function syncHintBadge() {
-  hintLevelBadgeEl.textContent = Math.min(getTabState(activeTabId)?.hintLevel ?? 1, 3);
+  hintLevelBadgeEl.textContent = Math.min(getTabState(activeTabId).hintLevel, 3);
 }
 
 function removeEmptyState() {
@@ -630,63 +628,17 @@ async function handleModeRequest(mode) {
 
   const state = getTabState(activeTabId);
   const hintLevel = state.hintLevel;
-  let assistantText = '';
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60_000);
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-      body: JSON.stringify(buildModeBody(mode, context, hintLevel)),
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      assistantText += decoder.decode(value, { stream: true });
-      assistantBubble.innerHTML = renderMarkdown(assistantText);
-      scrollToBottom();
-    }
-    const tail = decoder.decode();
-    if (tail) {
-      assistantText += tail;
-      assistantBubble.innerHTML = renderMarkdown(assistantText);
-      scrollToBottom();
-    }
-
-    // Check for rate limit error streamed as JSON
-    try {
-      const parsed = JSON.parse(assistantText);
-      if (parsed.error === 'weekly_limit_reached') {
-        assistantBubble.remove();
-        showLimitWarning();
-        setInputEnabled(true);
-        inputEl.focus();
-        return;
-      }
-    } catch (_e) { /* normal text response */ }
-
-    incrementUsage();
-
+  await streamResponse(buildModeBody(mode, context, hintLevel), assistantBubble, (assistantText) => {
     if (mode === 'hint' && hintLevel < 3) {
       state.hintLevel++;
       syncHintBadge();
     }
-
     state.history.push(
       { role: 'user', content: labels[mode] },
       { role: 'assistant', content: assistantText },
     );
-  } catch (_) {
-    assistantBubble.textContent = 'Error generating response. Please try again.';
-    scrollToBottom();
-  }
+  });
 
   setInputEnabled(true);
   inputEl.focus();

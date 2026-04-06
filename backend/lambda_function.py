@@ -177,12 +177,27 @@ def build_prompt_for_mode(mode, body):
     return build_chat_prompt(body), 256  # 'chat' or unknown
 
 
-def build_hint_prompt(body):
+def _build_preamble(body):
     problem = body.get('problem', {})
     code = body.get('code', '')
     language = body.get('language', 'Python')
-    hint_level = body.get('hintLevel', 1)
     submission_snippet = format_submission_result(body.get('submissionResult'))
+    preamble = (
+        f"You are LeetCoach, an AI coding coach embedded in LeetCode.\n\n"
+        f"Current problem:\n"
+        f"- Difficulty: {problem.get('difficulty', 'Unknown')}\n"
+        f"- Tags: {', '.join(problem.get('tags', []))}\n"
+        f"- Description: {problem.get('description', '')}\n\n"
+        f"User's current code ({language}):\n"
+        f"```\n{code}\n```\n"
+        f"{submission_snippet}"
+    )
+    return preamble, language
+
+
+def build_hint_prompt(body):
+    hint_level = body.get('hintLevel', 1)
+    preamble, language = _build_preamble(body)
 
     level_instructions = {
         1: (
@@ -201,18 +216,7 @@ def build_hint_prompt(body):
 
     instruction = level_instructions.get(hint_level, level_instructions[3])
 
-    return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
-
-Current problem:
-- Difficulty: {problem.get('difficulty', 'Unknown')}
-- Tags: {', '.join(problem.get('tags', []))}
-- Description: {problem.get('description', '')}
-
-User's current code ({language}):
-```
-{code}
-```
-{submission_snippet}
+    return preamble + f"""
 Hint level requested: {hint_level} of 3
 
 Your task: {instruction}
@@ -227,23 +231,9 @@ Rules:
 
 
 def build_analyze_prompt(body):
-    problem = body.get('problem', {})
-    code = body.get('code', '')
-    language = body.get('language', 'Python')
-    submission_snippet = format_submission_result(body.get('submissionResult'))
+    preamble, language = _build_preamble(body)
 
-    return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
-
-Current problem:
-- Difficulty: {problem.get('difficulty', 'Unknown')}
-- Tags: {', '.join(problem.get('tags', []))}
-- Description: {problem.get('description', '')}
-
-User's current code ({language}):
-```
-{code}
-```
-{submission_snippet}
+    return preamble + f"""
 Your task: Analyze the code. 3 bullets max, one line each. Skip any section that has no issue:
 - **Correctness:** is the logic right? If there's a submission failure, diagnose why.
 - **Complexity:** Big-O time and space. Is it optimal?
@@ -254,45 +244,17 @@ No rewrites, no full solutions. Be concise — stop as soon as the point is made
 
 
 def build_dsa_prompt(body):
-    problem = body.get('problem', {})
-    code = body.get('code', '')
-    language = body.get('language', 'Python')
-    submission_snippet = format_submission_result(body.get('submissionResult'))
+    preamble, language = _build_preamble(body)
 
-    return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
-
-Current problem:
-- Difficulty: {problem.get('difficulty', 'Unknown')}
-- Tags: {', '.join(problem.get('tags', []))}
-- Description: {problem.get('description', '')}
-
-User's current code ({language}):
-```
-{code}
-```
-{submission_snippet}
+    return preamble + f"""
 Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**). Use {language} naming conventions for data structures. If the last submission shows a TLE or MLE, factor the complexity requirement into your recommendation.
 """
 
 
 def build_chat_prompt(body):
-    problem = body.get('problem', {})
-    code = body.get('code', '')
-    language = body.get('language', 'Python')
-    submission_snippet = format_submission_result(body.get('submissionResult'))
+    preamble, language = _build_preamble(body)
 
-    return f"""You are LeetCoach, an AI coding coach embedded in LeetCode.
-
-Current problem:
-- Difficulty: {problem.get('difficulty', 'Unknown')}
-- Tags: {', '.join(problem.get('tags', []))}
-- Description: {problem.get('description', '')}
-
-User's current code ({language}):
-```
-{code}
-```
-{submission_snippet}
+    return preamble + f"""
 Rules:
 - Be terse. 1-2 sentences max unless the question genuinely requires more. Stop as soon as the point is made.
 - Recommend specific DS/algorithm variants for this problem, not generic advice.
@@ -323,10 +285,10 @@ def build_messages(body):
 # Usage tracking
 # ---------------------------------------------------------------------------
 
-def get_week_start():
-    today = datetime.date.today()
-    monday = today - datetime.timedelta(days=today.weekday())
-    return monday.isoformat()
+def get_week_start(d=None):
+    if d is None:
+        d = datetime.date.today()
+    return (d - datetime.timedelta(days=d.weekday())).isoformat()
 
 
 def check_and_update_usage(user_id):
@@ -335,8 +297,9 @@ def check_and_update_usage(user_id):
         return True
     try:
         table = dynamodb.Table(TABLE_NAME)
-        today = datetime.date.today().isoformat()
-        current_monday = get_week_start()
+        today_date = datetime.date.today()
+        today = today_date.isoformat()
+        current_monday = get_week_start(today_date)
 
         result = table.get_item(Key={'userId': user_id})
         item = result.get('Item')
@@ -409,7 +372,7 @@ def handler(event, context):
             return
 
         validate_and_sanitize_body(body)
-        user_id = body.get('userId', None)
+        user_id = body.get('userId')
 
         if mode == 'usage':
             usage_data = {'weeklyRequests': 0, 'weekStartDate': get_week_start()}
