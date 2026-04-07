@@ -9,7 +9,11 @@ chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
   if (!tab.url) return;
 
-  const isProblem = tab.url.includes('leetcode.com/problems/');
+  let isProblem = false;
+  try {
+    const u = new URL(tab.url);
+    isProblem = u.hostname === 'leetcode.com' && u.pathname.startsWith('/problems/');
+  } catch (_e) { /* invalid URL — leave isProblem false */ }
 
   await chrome.sidePanel.setOptions({
     tabId,
@@ -20,6 +24,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
   if (command !== 'open-side-panel' || !tab?.id) return;
-  if (!tab.url?.includes('leetcode.com/problems/')) return;
+  let onProblem = false;
+  try {
+    const u = new URL(tab.url);
+    onProblem = u.hostname === 'leetcode.com' && u.pathname.startsWith('/problems/');
+  } catch (_e) {}
+  if (!onProblem) return;
   await chrome.sidePanel.open({ tabId: tab.id });
 });

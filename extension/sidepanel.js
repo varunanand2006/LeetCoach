@@ -666,8 +666,8 @@ function renderMarkdown(raw) {
     const highlighted = grammar
       ? Prism.highlight(trimmed, grammar, prismLang)
       : escapeHtml(trimmed);
-    const attr = lang ? ` data-lang="${lang}"` : '';
-    blocks.push(`<pre${attr}><code class="language-${prismLang}">${highlighted}</code></pre>`);
+    const attr = lang ? ` data-lang="${escapeHtml(lang)}"` : '';
+    blocks.push(`<pre${attr}><code class="language-${escapeHtml(prismLang)}">${highlighted}</code></pre>`);
     return `\x02B${blocks.length - 1}\x03`;
   });
 
