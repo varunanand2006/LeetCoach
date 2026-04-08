@@ -22,7 +22,7 @@ LeetCoach adds a sidebar directly to LeetCode problem pages. Instead of Googling
 
 ## Install
 
-**Chrome Web Store** *(coming soon)*
+**Chrome Web Store** — search "LeetCoach"
 
 **Developer mode:**
 1. Clone this repo
@@ -63,7 +63,7 @@ AWS Lambda (Python 3.11)
 | `sidepanel.html` | Sidebar UI markup and CSS |
 | `sidepanel.js` | Chat logic, Monaco code reading (MAIN world), submission result scraping, Lambda fetch, usage tracking |
 
-Monaco code is read via `chrome.scripting.executeScript` in the MAIN world — the extension's isolated content script cannot access `window.monaco` directly. LeetCode creates an empty scratch model at `models[0]`; the real user code is in the first non-empty model.
+User code is read via `chrome.scripting.executeScript` in the MAIN world — the extension's isolated content script cannot access the editor internals directly. The implementation tries Monaco first (first non-empty model), then CodeMirror 6 (via the internal `EditorView` key on `.cm-editor`), then falls back to reading `.cm-line` DOM elements. LeetCode migrated from Monaco to CM6, so most users hit the CM6 path.
 
 ### Backend
 
