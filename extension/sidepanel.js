@@ -408,8 +408,7 @@ async function fetchContext() {
           resolve(res ?? null);
         });
       });
-      const code = await getMonacoCode(tab.id);
-      const submissionResult = await getSubmissionResult(tab.id);
+      const [code, submissionResult] = await Promise.all([getMonacoCode(tab.id), getSubmissionResult(tab.id)]);
       if (context) {
         context.code = code;
         context.submissionResult = submissionResult;
@@ -464,10 +463,12 @@ async function sendMessage(userText) {
   };
 
   await streamResponse(body, assistantBubble, (assistantText) => {
-    getTabState(activeTabId).history.push(
+    const hist = getTabState(activeTabId).history;
+    hist.push(
       { role: 'user', content: userText },
       { role: 'assistant', content: assistantText },
     );
+    if (hist.length > 20) hist.splice(0, hist.length - 20);
   });
 
   setInputEnabled(true);
@@ -491,21 +492,26 @@ async function streamResponse(body, assistantBubble, onSuccess) {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let rafPending = false;
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       assistantText += decoder.decode(value, { stream: true });
-      assistantBubble.innerHTML = renderMarkdown(assistantText);
-      scrollToBottom();
+      if (!rafPending) {
+        rafPending = true;
+        requestAnimationFrame(() => {
+          assistantBubble.innerHTML = renderMarkdown(assistantText);
+          scrollToBottom();
+          rafPending = false;
+        });
+      }
     }
 
     const tail = decoder.decode();
-    if (tail) {
-      assistantText += tail;
-      assistantBubble.innerHTML = renderMarkdown(assistantText);
-      scrollToBottom();
-    }
+    if (tail) assistantText += tail;
+    assistantBubble.innerHTML = renderMarkdown(assistantText);
+    scrollToBottom();
 
     // Check for rate limit error streamed as JSON
     try {
@@ -638,6 +644,7 @@ async function handleModeRequest(mode) {
       { role: 'user', content: labels[mode] },
       { role: 'assistant', content: assistantText },
     );
+    if (state.history.length > 20) state.history.splice(0, state.history.length - 20);
   });
 
   setInputEnabled(true);

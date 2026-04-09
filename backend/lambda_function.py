@@ -99,21 +99,27 @@ def _bedrock_text_chunks(stream):
 def validate_and_sanitize_body(body):
     """Sanitize request body in-place. Truncates oversized fields."""
     code = body.get('code', '')
-    if isinstance(code, str) and len(code.encode('utf-8')) > MAX_CODE_BYTES:
-        body['code'] = code.encode('utf-8')[:MAX_CODE_BYTES].decode('utf-8', errors='ignore')
+    if isinstance(code, str):
+        encoded = code.encode('utf-8')
+        if len(encoded) > MAX_CODE_BYTES:
+            body['code'] = encoded[:MAX_CODE_BYTES].decode('utf-8', errors='ignore')
 
     problem = body.get('problem')
     if isinstance(problem, dict):
         desc = problem.get('description', '')
-        if isinstance(desc, str) and len(desc.encode('utf-8')) > MAX_DESC_BYTES:
-            problem['description'] = desc.encode('utf-8')[:MAX_DESC_BYTES].decode('utf-8', errors='ignore')
+        if isinstance(desc, str):
+            encoded = desc.encode('utf-8')
+            if len(encoded) > MAX_DESC_BYTES:
+                problem['description'] = encoded[:MAX_DESC_BYTES].decode('utf-8', errors='ignore')
         tags = problem.get('tags', [])
         if isinstance(tags, list):
             problem['tags'] = [t[:100] for t in tags if isinstance(t, str)][:20]
 
     msg = body.get('message', '')
-    if isinstance(msg, str) and len(msg.encode('utf-8')) > MAX_MSG_BYTES:
-        body['message'] = msg.encode('utf-8')[:MAX_MSG_BYTES].decode('utf-8', errors='ignore')
+    if isinstance(msg, str):
+        encoded = msg.encode('utf-8')
+        if len(encoded) > MAX_MSG_BYTES:
+            body['message'] = encoded[:MAX_MSG_BYTES].decode('utf-8', errors='ignore')
 
     hl = body.get('hintLevel', 1)
     if not isinstance(hl, int) or hl not in (1, 2, 3):
