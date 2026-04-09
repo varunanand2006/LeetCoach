@@ -88,10 +88,28 @@ async function fetchUsageFromServer(userId) {
   } catch (_e) { /* fail silently — local count remains */ }
 }
 
+function getTimeUntilResetStr() {
+  const now = new Date();
+  const nextMonday = new Date(now);
+  const daysToAdd = ((7 - now.getDay()) % 7) + 1;
+  nextMonday.setDate(now.getDate() + daysToAdd);
+  nextMonday.setHours(0, 0, 0, 0);
+
+  const diffMs = nextMonday.getTime() - now.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHrs = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHrs / 24);
+
+  if (diffDays >= 1) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'}`;
+  if (diffHrs >= 1) return `${diffHrs} ${diffHrs === 1 ? 'hour' : 'hours'}`;
+  return `${Math.max(1, diffMins)} ${Math.max(1, diffMins) === 1 ? 'minute' : 'minutes'}`;
+}
+
 function updateUsageIndicator() {
   if (!usageIndicatorEl) return;
   const remaining = Math.max(0, WEEKLY_LIMIT - weeklyRequestsUsed);
-  usageIndicatorEl.dataset.tooltip = `${remaining} prompts left`;
+  const resetStr = getTimeUntilResetStr();
+  usageIndicatorEl.dataset.tooltip = `${remaining} prompts left\nLimit resets in ${resetStr}`;
 }
 
 async function incrementUsage() {
@@ -576,7 +594,10 @@ function updateHeader(context) {
 }
 
 function scrollToBottom() {
-  chatEl.scrollTop = chatEl.scrollHeight;
+  const appEl = document.getElementById('app');
+  if (appEl) {
+    appEl.scrollTop = appEl.scrollHeight;
+  }
 }
 
 function setInputEnabled(enabled) {

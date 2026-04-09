@@ -29,6 +29,21 @@
       display: flex;
       flex-direction: column;
       height: 100vh;
+      overflow-y: auto;
+    }
+
+    #app::-webkit-scrollbar {
+      width: 5px;
+    }
+    #app::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #app::-webkit-scrollbar-thumb {
+      background: rgba(80, 80, 80, 0.5);
+      border-radius: 3px;
+    }
+    #app::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 100, 100, 0.8);
     }
 
     /* -------------------------------------------------------------------------
@@ -36,12 +51,17 @@
     ------------------------------------------------------------------------- */
 
     #header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 12px 14px;
-      background: #111111;
-      border-bottom: 1px solid #2e2e2e;
+      background: rgba(17, 17, 17, 0.70);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(46, 46, 46, 0.4);
       flex-shrink: 0;
       gap: 10px;
       min-width: 0;
@@ -65,7 +85,7 @@
     #chat {
       position: relative;
       flex: 1;
-      overflow-y: auto;
+      overflow-y: visible;
       padding: 10px 8px;
       display: flex;
       flex-direction: column;
@@ -93,22 +113,7 @@
       opacity: 0;
     }
 
-    #chat::-webkit-scrollbar {
-      width: 5px;
-    }
-
-    #chat::-webkit-scrollbar-track {
-      background: #1a1a1a;
-    }
-
-    #chat::-webkit-scrollbar-thumb {
-      background: #3a3a3a;
-      border-radius: 3px;
-    }
-
-    #chat::-webkit-scrollbar-thumb:hover {
-      background: #4a4a4a;
-    }
+    /* scrollbar styles moved to #app */
 
     #empty-state {
       color: #555;
@@ -141,9 +146,10 @@
 
     .message.user {
       align-self: flex-end;
-      background: #ffa116;
+      background: linear-gradient(135deg, #FFB340 0%, #FF8C00 100%);
       color: #111111;
       border-bottom-right-radius: 3px;
+      box-shadow: 0 4px 14px rgba(255, 161, 22, 0.4);
     }
 
     .message.assistant {
@@ -151,7 +157,8 @@
       background: #282828;
       color: #e0e0e0;
       border-bottom-left-radius: 3px;
-      border: 1px solid #333;
+      border: 1px solid #3a3a3a;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
       white-space: normal;
     }
 
@@ -226,17 +233,20 @@
     #usage-indicator {
       position: relative;
       flex-shrink: 0;
-      color: #444;
+      color: #666;
+      font-size: 14px;
       cursor: default;
       display: flex;
       align-items: center;
-      padding: 2px 0 2px 4px;
-      margin-top: 2px;
-      transition: color 0.15s;
+      padding: 4px;
+      transition: opacity 0.15s, filter 0.15s;
+      opacity: 0.35;
+      filter: grayscale(100%);
     }
 
     #usage-indicator:hover {
-      color: #888;
+      opacity: 1;
+      filter: grayscale(0%);
     }
 
     #usage-indicator::after {
@@ -246,12 +256,14 @@
       top: calc(100% + 8px);
       background: #1e1e1e;
       border: 1px solid #333;
-      color: #aaa;
+      color: #e0e0e0;
       font-size: 11px;
       font-weight: 400;
-      padding: 4px 8px;
+      padding: 6px 10px;
       border-radius: 5px;
-      white-space: nowrap;
+      white-space: pre;
+      text-align: right;
+      line-height: 1.5;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.15s;
@@ -260,40 +272,6 @@
 
     #usage-indicator:hover::after {
       opacity: 1;
-    }
-
-    .gg-hourglass {
-      box-sizing: border-box;
-      position: relative;
-      display: block;
-      width: 10px;
-      height: 14px;
-      border-top: 2px solid currentColor;
-      border-bottom: 2px solid currentColor;
-      flex-shrink: 0;
-    }
-
-    .gg-hourglass::before,
-    .gg-hourglass::after {
-      content: "";
-      display: block;
-      box-sizing: border-box;
-      position: absolute;
-      left: 0;
-      width: 0;
-      height: 0;
-      border-left: 5px solid transparent;
-      border-right: 5px solid transparent;
-    }
-
-    .gg-hourglass::before {
-      top: 0;
-      border-top: 5px solid currentColor;
-    }
-
-    .gg-hourglass::after {
-      bottom: 0;
-      border-bottom: 5px solid currentColor;
     }
 
     /* -------------------------------------------------------------------------
@@ -359,7 +337,7 @@
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
       white-space: nowrap;
       display: flex;
       align-items: center;
@@ -371,6 +349,14 @@
       background: #2e2e2e;
       border-color: #ffa116;
       color: #ffa116;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .mode-btn:active:not(:disabled) {
+      transform: translateY(1px);
+      box-shadow: none;
+      background: #333333;
     }
 
     .mode-btn:disabled {
@@ -380,16 +366,24 @@
 
     #hint-level-badge {
       display: inline-block;
-      background: #ffa116;
-      color: #111111;
+      box-sizing: border-box;
+      background: #111111;
+      color: #ffffff;
+      border: 1px solid #ffffff;
       font-size: 10px;
       font-weight: 700;
       border-radius: 50%;
       width: 15px;
       height: 15px;
-      line-height: 15px;
+      line-height: 13px;
       text-align: center;
       margin-left: 3px;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .mode-btn:hover:not(:disabled) #hint-level-badge {
+      color: #ffa116;
+      border-color: #ffa116;
     }
 
     /* -------------------------------------------------------------------------
@@ -397,12 +391,17 @@
     ------------------------------------------------------------------------- */
 
     #input-row {
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      padding: 8px 10px;
-      background: #111111;
-      border-top: 1px solid #2e2e2e;
+      padding: 12px 10px;
+      background: rgba(17, 17, 17, 0.70);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(46, 46, 46, 0.4);
       flex-shrink: 0;
     }
 
@@ -419,7 +418,7 @@
       line-height: 1.45;
       max-height: 120px;
       overflow-y: auto;
-      transition: border-color 0.15s ease;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
     #input::placeholder {
@@ -428,6 +427,7 @@
 
     #input:focus {
       border-color: #ffa116;
+      box-shadow: 0 0 0 2px rgba(255, 161, 22, 0.15);
     }
 
     #input::-webkit-scrollbar {
@@ -582,7 +582,7 @@
     <div id="header">
       <span id="problem-name">LeetCoach</span>
       <div id="usage-indicator" data-tooltip="100 prompts left">
-        <i class="gg-hourglass"></i>
+        ✨
       </div>
     </div>
 
