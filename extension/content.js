@@ -43,7 +43,7 @@ function getTags() {
   // Topic tag links contain /tag/ in their href
   const tagEls = document.querySelectorAll('a[href*="/tag/"]');
   if (!tagEls.length) return [];
-  return Array.from(tagEls).map((el) => el.innerText?.trim()).filter(Boolean);
+  return Array.from(tagEls, (el) => el.innerText?.trim()).filter(Boolean);
 }
 
 function getDescription() {

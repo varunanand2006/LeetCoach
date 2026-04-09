@@ -45,12 +45,10 @@ const LANG_MAP = {
 
 function getThisMonday() {
   const d = new Date();
-  const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diff);
-  const y = monday.getFullYear();
-  const m = String(monday.getMonth() + 1).padStart(2, '0');
-  const dd = String(monday.getDate()).padStart(2, '0');
+  d.setDate(d.getDate() + (d.getDay() === 0 ? -6 : 1 - d.getDay()));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${dd}`;
 }
 
@@ -287,10 +285,12 @@ async function getMonacoCode(tabId) {
         // Monaco editor (legacy LeetCode)
         const models = window.monaco?.editor?.getModels() ?? [];
         const editors = window.monaco?.editor?.getEditors() ?? [];
-        const monacoCode =
-          models.map((m) => m.getValue()).find((v) => v.length > 0) ??
-          editors[0]?.getValue() ??
-          '';
+        let monacoCode = '';
+        for (const m of models) {
+          const v = m.getValue();
+          if (v) { monacoCode = v; break; }
+        }
+        if (!monacoCode) monacoCode = editors[0]?.getValue() ?? '';
         if (monacoCode) return monacoCode;
 
         // CodeMirror 6 (current LeetCode editor)
@@ -322,17 +322,17 @@ async function getSubmissionResult(tabId) {
       target: { tabId },
       world: 'MAIN',
       func: () => {
-        const TERMINAL = [
+        const TERMINAL = new Set([
           'Wrong Answer', 'Runtime Error', 'Time Limit Exceeded',
           'Memory Limit Exceeded', 'Compile Error', 'Output Limit Exceeded',
-        ];
+        ]);
 
         // Find the result element — try stable attribute first, then text search
         let resultEl = document.querySelector('[data-e2e-locator="submission-result"]');
-        if (!resultEl || !TERMINAL.includes(resultEl.innerText?.trim())) {
+        if (!resultEl || !TERMINAL.has(resultEl.innerText?.trim())) {
           resultEl = null;
           for (const el of document.querySelectorAll('span, div, p, h4, h5')) {
-            if (el.children.length <= 1 && TERMINAL.includes(el.innerText?.trim())) {
+            if (el.children.length <= 1 && TERMINAL.has(el.innerText?.trim())) {
               resultEl = el;
               break;
             }
@@ -364,6 +364,7 @@ async function getSubmissionResult(tabId) {
             } else if (text === 'Output' || text === 'Stdout' || text === 'Actual Output' || text === 'Your Output') {
               details.actual = el.nextElementSibling?.innerText?.trim() ?? null;
             }
+            if (details.input !== null && details.expected !== null && details.actual !== null) break;
           }
           return { status, ...details };
         }
@@ -474,7 +475,7 @@ async function sendMessage(userText) {
       { role: 'user', content: userText },
       { role: 'assistant', content: assistantText },
     );
-    if (hist.length > 20) hist.splice(0, hist.length - 20);
+    if (hist.length > 20) hist.splice(0, 2);
   });
 
   setInputEnabled(true);
@@ -653,7 +654,7 @@ async function handleModeRequest(mode) {
       { role: 'user', content: labels[mode] },
       { role: 'assistant', content: assistantText },
     );
-    if (state.history.length > 20) state.history.splice(0, state.history.length - 20);
+    if (state.history.length > 20) state.history.splice(0, 2);
   });
 
   setInputEnabled(true);
@@ -682,8 +683,8 @@ function renderMarkdown(raw) {
     const highlighted = grammar
       ? Prism.highlight(trimmed, grammar, prismLang)
       : escapeHtml(trimmed);
-    const attr = lang ? ` data-lang="${escapeHtml(lang)}"` : '';
-    blocks.push(`<pre${attr}><code class="language-${escapeHtml(prismLang)}">${highlighted}</code></pre>`);
+    const attr = lang ? ` data-lang="${lang}"` : '';
+    blocks.push(`<pre${attr}><code class="language-${prismLang}">${highlighted}</code></pre>`);
     return `\x02B${blocks.length - 1}\x03`;
   });
 
