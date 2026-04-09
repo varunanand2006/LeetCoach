@@ -8,7 +8,7 @@ const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.o
 // Must match the API_KEY environment variable set on the Lambda (template.yaml).
 const API_KEY = 'fd6c9ff374bc5801ac6e2c1bf80cec7c326dec771f325a4e7d96532b607e7b5d';
 const WEEKLY_LIMIT = 100;
-const CLEAR_PHRASES = ['start over', 'clear chat', 'clear', 'reset'];
+const CLEAR_PHRASES = new Set(['start over', 'clear chat', 'clear', 'reset']);
 
 const LANG_MAP = {
   // Python
@@ -80,16 +80,7 @@ async function fetchUsageFromServer(userId) {
     });
     clearTimeout(timeoutId);
     if (!response.ok) return;
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let text = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      text += decoder.decode(value, { stream: true });
-    }
-    text += decoder.decode();
-    const data = JSON.parse(text);
+    const data = JSON.parse(await response.text());
     if (typeof data.weeklyRequests === 'number') {
       const currentMonday = getThisMonday();
       weeklyRequestsUsed = data.weekStartDate === currentMonday ? data.weeklyRequests : 0;
@@ -108,7 +99,7 @@ function updateUsageIndicator() {
 
 async function incrementUsage() {
   weeklyRequestsUsed++;
-  await chrome.storage.local.set({ weeklyRequests: weeklyRequestsUsed, weekStartDate: getThisMonday() });
+  await chrome.storage.local.set({ weeklyRequests: weeklyRequestsUsed });
   updateUsageIndicator();
 }
 
@@ -185,7 +176,9 @@ async function initPanel() {
       return;
     }
 
-    getTabState(activeTabId).slug = context.slug;
+    const state = getTabState(activeTabId);
+    state.slug = context.slug;
+    state.baseContext = context;
     updateHeader(context);
     removeEmptyState();
     if (context.userId) fetchUsageFromServer(context.userId);
@@ -435,7 +428,7 @@ async function sendMessage(userText) {
   userText = (userText ?? '').trim();
   if (!userText) return;
 
-  if (CLEAR_PHRASES.includes(userText.toLowerCase())) {
+  if (CLEAR_PHRASES.has(userText.toLowerCase())) {
     clearChat();
     return;
   }
@@ -561,7 +554,6 @@ function appendMessage(role, text) {
   el.textContent = text;
   chatEl.appendChild(el);
   scrollToBottom();
-  return el;
 }
 
 function createMessageBubble(role) {
@@ -588,7 +580,7 @@ function setInputEnabled(enabled) {
 }
 
 function syncHintBadge() {
-  hintLevelBadgeEl.textContent = Math.min(getTabState(activeTabId).hintLevel, 3);
+  hintLevelBadgeEl.textContent = getTabState(activeTabId).hintLevel;
 }
 
 function removeEmptyState() {
@@ -601,18 +593,20 @@ function removeEmptyState() {
 // ---------------------------------------------------------------------------
 
 function buildModeBody(mode, context, hintLevel) {
-  const problem = {
-    difficulty: context?.difficulty ?? null,
-    tags: context?.tags ?? [],
-    description: context?.description ?? null,
+  const body = {
+    mode,
+    problem: {
+      difficulty: context?.difficulty ?? null,
+      tags: context?.tags ?? [],
+      description: context?.description ?? null,
+    },
+    code: context?.code ?? '',
+    language: context?.language ?? null,
+    submissionResult: context?.submissionResult ?? null,
+    userId: context?.userId ?? null,
   };
-  const code = context?.code ?? '';
-  const language = context?.language ?? null;
-  const userId = context?.userId ?? null;
-  const submissionResult = context?.submissionResult ?? null;
-
-  if (mode === 'hint') return { mode, problem, code, language, hintLevel, submissionResult, userId };
-  return { mode, problem, code, language, submissionResult, userId };
+  if (mode === 'hint') body.hintLevel = hintLevel;
+  return body;
 }
 
 async function handleModeRequest(mode) {
