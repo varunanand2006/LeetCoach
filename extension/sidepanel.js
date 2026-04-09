@@ -91,10 +91,9 @@ async function fetchUsageFromServer(userId) {
 }
 
 function updateUsageIndicator() {
-  const el = document.getElementById('usage-indicator');
-  if (!el) return;
+  if (!usageIndicatorEl) return;
   const remaining = Math.max(0, WEEKLY_LIMIT - weeklyRequestsUsed);
-  el.dataset.tooltip = `${remaining} prompts left`;
+  usageIndicatorEl.dataset.tooltip = `${remaining} prompts left`;
 }
 
 async function incrementUsage() {
@@ -123,13 +122,14 @@ function getTabState(tabId) {
 // Initialisation
 // ---------------------------------------------------------------------------
 
-let chatEl, inputEl, problemNameEl;
+let chatEl, inputEl, problemNameEl, usageIndicatorEl;
 let modeBtnHint, modeBtnAnalyze, modeBtnDsa, hintLevelBadgeEl;
 
 document.addEventListener('DOMContentLoaded', () => {
   chatEl           = document.getElementById('chat');
   inputEl          = document.getElementById('input');
   problemNameEl    = document.getElementById('problem-name');
+  usageIndicatorEl = document.getElementById('usage-indicator');
   modeBtnHint      = document.getElementById('btn-hint');
   modeBtnAnalyze   = document.getElementById('btn-analyze');
   modeBtnDsa       = document.getElementById('btn-dsa');
@@ -220,7 +220,7 @@ function setupNavigationDetection() {
         state.history = [];
         state.domSnapshot = null;
         state.hintLevel = 1;
-        state.baseContext = null;
+        state.baseContext = context;
         chatEl.replaceChildren();
         updateHeader(context);
         syncHintBadge();
@@ -246,20 +246,26 @@ function setupNavigationDetection() {
     if (state.domSnapshot) chatEl.appendChild(state.domSnapshot);
     syncHintBadge();
 
-    // Refresh header
-    try {
-      const context = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tabId, { type: 'GET_BASE_CONTEXT' }, (res) => {
-          if (chrome.runtime.lastError) { /* content.js not injected — ignore */ }
-          resolve(res ?? null);
+    // Refresh header — use cache if available, otherwise ask content.js
+    if (state.baseContext) {
+      updateHeader(state.baseContext);
+      if (!state.domSnapshot) removeEmptyState();
+    } else {
+      try {
+        const context = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(tabId, { type: 'GET_BASE_CONTEXT' }, (res) => {
+            if (chrome.runtime.lastError) { /* content.js not injected — ignore */ }
+            resolve(res ?? null);
+          });
         });
-      });
-      if (context && context.slug) {
-        updateHeader(context);
-        if (!state.domSnapshot) removeEmptyState();
+        if (context && context.slug) {
+          state.baseContext = context;
+          updateHeader(context);
+          if (!state.domSnapshot) removeEmptyState();
+        }
+      } catch (_err) {
+        // Not a LeetCode page — panel is hidden anyway
       }
-    } catch (_err) {
-      // Not a LeetCode page — panel is hidden anyway
     }
   });
 
@@ -394,21 +400,21 @@ async function getSubmissionResult(tabId) {
 async function fetchContext() {
   let context = null;
   try {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (tab) {
-      const state = getTabState(tab.id);
+    const tabId = activeTabId;
+    if (tabId) {
+      const state = getTabState(tabId);
       if (state.baseContext) {
         context = { ...state.baseContext };
       } else {
         context = await new Promise((resolve) => {
-          chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
+          chrome.tabs.sendMessage(tabId, { type: 'GET_BASE_CONTEXT' }, (res) => {
             if (chrome.runtime.lastError) { /* content.js not ready */ }
             resolve(res ?? null);
           });
         });
         if (context) state.baseContext = context;
       }
-      const [code, submissionResult] = await Promise.all([getMonacoCode(tab.id), getSubmissionResult(tab.id)]);
+      const [code, submissionResult] = await Promise.all([getMonacoCode(tabId), getSubmissionResult(tabId)]);
       if (context) {
         context.code = code;
         context.submissionResult = submissionResult;
@@ -583,9 +589,11 @@ function syncHintBadge() {
   hintLevelBadgeEl.textContent = getTabState(activeTabId).hintLevel;
 }
 
+let emptyStateRemoved = false;
 function removeEmptyState() {
+  if (emptyStateRemoved) return;
   const el = document.getElementById('empty-state');
-  if (el) el.remove();
+  if (el) { el.remove(); emptyStateRemoved = true; }
 }
 
 // ---------------------------------------------------------------------------

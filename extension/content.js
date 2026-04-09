@@ -65,7 +65,7 @@ function getLanguage() {
 }
 
 function getUsername() {
-  return Array.from(document.querySelectorAll('a[href*="/u/"]'))[0]?.href?.split('/u/')[1]?.split('/')[0] ?? null;
+  return document.querySelector('a[href*="/u/"]')?.href?.split('/u/')[1]?.split('/')[0] ?? null;
 }
 
 function collectBaseContext() {
