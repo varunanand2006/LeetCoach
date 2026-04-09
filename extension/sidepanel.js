@@ -116,14 +116,14 @@ async function incrementUsage() {
 // State
 // ---------------------------------------------------------------------------
 
-/** Per-tab state: Map<tabId, { history: [], slug: string|null, domSnapshot: DocumentFragment|null, hintLevel: number }> */
+/** Per-tab state: Map<tabId, { history: [], slug: string|null, domSnapshot: DocumentFragment|null, hintLevel: number, baseContext: object|null }> */
 const tabHistories = new Map();
 let activeTabId = null;
 
 function getTabState(tabId) {
-  if (!tabId) return { history: [], slug: null, domSnapshot: null, hintLevel: 1 };
+  if (!tabId) return { history: [], slug: null, domSnapshot: null, hintLevel: 1, baseContext: null };
   if (!tabHistories.has(tabId)) {
-    tabHistories.set(tabId, { history: [], slug: null, domSnapshot: null, hintLevel: 1 });
+    tabHistories.set(tabId, { history: [], slug: null, domSnapshot: null, hintLevel: 1, baseContext: null });
   }
   return tabHistories.get(tabId);
 }
@@ -227,6 +227,7 @@ function setupNavigationDetection() {
         state.history = [];
         state.domSnapshot = null;
         state.hintLevel = 1;
+        state.baseContext = null;
         chatEl.replaceChildren();
         updateHeader(context);
         syncHintBadge();
@@ -402,12 +403,18 @@ async function fetchContext() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (tab) {
-      context = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
-          if (chrome.runtime.lastError) { /* content.js not ready */ }
-          resolve(res ?? null);
+      const state = getTabState(tab.id);
+      if (state.baseContext) {
+        context = { ...state.baseContext };
+      } else {
+        context = await new Promise((resolve) => {
+          chrome.tabs.sendMessage(tab.id, { type: 'GET_BASE_CONTEXT' }, (res) => {
+            if (chrome.runtime.lastError) { /* content.js not ready */ }
+            resolve(res ?? null);
+          });
         });
-      });
+        if (context) state.baseContext = context;
+      }
       const [code, submissionResult] = await Promise.all([getMonacoCode(tab.id), getSubmissionResult(tab.id)]);
       if (context) {
         context.code = code;

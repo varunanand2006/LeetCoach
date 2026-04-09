@@ -26,9 +26,11 @@ function getDifficulty() {
   const el = document.querySelector('[class*="text-difficulty-"]');
   if (el) return el.innerText?.trim() ?? null;
 
-  // Fallback: find a span/div whose text is exactly Easy / Medium / Hard
-  const candidates = document.querySelectorAll('span, div');
+  // Fallback: find a short-text span/div whose text is exactly Easy / Medium / Hard.
+  // Limit to elements with a class (styled elements) to avoid scanning thousands of bare nodes.
+  const candidates = document.querySelectorAll('span[class], div[class]');
   for (const candidate of candidates) {
+    if (candidate.children.length > 0) continue;
     const text = candidate.innerText?.trim();
     if (text === 'Easy' || text === 'Medium' || text === 'Hard') {
       return text;

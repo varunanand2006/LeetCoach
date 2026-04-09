@@ -4,6 +4,7 @@ import re
 import http.client
 import datetime
 import boto3
+from botocore.exceptions import ClientError
 
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
@@ -339,11 +340,19 @@ def check_and_update_usage(user_id):
         if item.get('weeklyRequests', 0) >= WEEKLY_LIMIT:
             return False
 
-        table.update_item(
-            Key={'userId': user_id},
-            UpdateExpression='SET lastSeen = :today ADD weeklyRequests :one, totalRequests :one',
-            ExpressionAttributeValues={':one': 1, ':today': today},
-        )
+        # ConditionExpression makes the limit check and the increment atomic,
+        # eliminating the TOCTOU race between the get_item above and this write.
+        try:
+            table.update_item(
+                Key={'userId': user_id},
+                UpdateExpression='SET lastSeen = :today ADD weeklyRequests :one, totalRequests :one',
+                ConditionExpression='weeklyRequests < :limit',
+                ExpressionAttributeValues={':one': 1, ':today': today, ':limit': WEEKLY_LIMIT},
+            )
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+                return False
+            raise
         return True
 
     except Exception as e:
