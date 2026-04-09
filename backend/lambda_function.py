@@ -11,6 +11,7 @@ dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
 WEEKLY_LIMIT = 100
 TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
+_table = dynamodb.Table(TABLE_NAME)  # cached; Lambda reuses this across warm invocations
 
 # Model IDs — override via Lambda environment variables when Anthropic deprecates a version
 HAIKU_MODEL_ID = os.environ.get('HAIKU_MODEL_ID', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
@@ -283,9 +284,8 @@ def build_messages(body):
     }
     message = body.get('message') or trigger_by_mode.get(mode, '')
 
-    messages = list(history)
-    messages.append({'role': 'user', 'content': message})
-    return messages
+    history.append({'role': 'user', 'content': message})
+    return history
 
 
 # ---------------------------------------------------------------------------
@@ -303,16 +303,15 @@ def check_and_update_usage(user_id):
     if not user_id:
         return True
     try:
-        table = dynamodb.Table(TABLE_NAME)
         today_date = datetime.date.today()
         today = today_date.isoformat()
         current_monday = get_week_start(today_date)
 
-        result = table.get_item(Key={'userId': user_id})
+        result = _table.get_item(Key={'userId': user_id})
         item = result.get('Item')
 
         if item is None:
-            table.put_item(Item={
+            _table.put_item(Item={
                 'userId': user_id,
                 'weeklyRequests': 1,
                 'totalRequests': 1,
@@ -324,26 +323,28 @@ def check_and_update_usage(user_id):
             return True
 
         if item.get('weekStartDate') != current_monday:
-            # New week — reset weekly counter
-            table.update_item(
-                Key={'userId': user_id},
-                UpdateExpression='SET weeklyRequests = :one, weekStartDate = :monday, lastSeen = :today ADD totalRequests :one2',
-                ExpressionAttributeValues={
-                    ':one': 1,
-                    ':one2': 1,
-                    ':monday': current_monday,
-                    ':today': today,
-                },
-            )
-            return True
+            # New week — reset weekly counter. ConditionExpression prevents a
+            # double-reset if two concurrent requests both saw the old weekStartDate.
+            try:
+                _table.update_item(
+                    Key={'userId': user_id},
+                    UpdateExpression='SET weeklyRequests = :one, weekStartDate = :monday, lastSeen = :today ADD totalRequests :one',
+                    ConditionExpression='weekStartDate <> :monday',
+                    ExpressionAttributeValues={':one': 1, ':monday': current_monday, ':today': today},
+                )
+                return True
+            except ClientError as e:
+                if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+                    raise
+                # Concurrent request already reset this week; fall through to normal increment
 
-        if item.get('weeklyRequests', 0) >= WEEKLY_LIMIT:
+        elif item.get('weeklyRequests', 0) >= WEEKLY_LIMIT:
             return False
 
         # ConditionExpression makes the limit check and the increment atomic,
         # eliminating the TOCTOU race between the get_item above and this write.
         try:
-            table.update_item(
+            _table.update_item(
                 Key={'userId': user_id},
                 UpdateExpression='SET lastSeen = :today ADD weeklyRequests :one, totalRequests :one',
                 ConditionExpression='weeklyRequests < :limit',
@@ -390,16 +391,16 @@ def handler(event, context):
         user_id = body.get('userId')
 
         if mode == 'usage':
-            usage_data = {'weeklyRequests': 0, 'weekStartDate': get_week_start()}
+            today = datetime.date.today()
+            usage_data = {'weeklyRequests': 0, 'weekStartDate': get_week_start(today)}
             if user_id:
                 try:
-                    table = dynamodb.Table(TABLE_NAME)
-                    result = table.get_item(Key={'userId': user_id})
+                    result = _table.get_item(Key={'userId': user_id})
                     item = result.get('Item')
                     if item:
                         usage_data = {
                             'weeklyRequests': int(item.get('weeklyRequests', 0)),
-                            'weekStartDate': item.get('weekStartDate', get_week_start()),
+                            'weekStartDate': item.get('weekStartDate', get_week_start(today)),
                         }
                 except Exception as e:
                     print(f"DynamoDB error fetching usage: {e}")
@@ -409,8 +410,8 @@ def handler(event, context):
         if not check_and_update_usage(user_id):
             _stream_to_runtime(context.aws_request_id, iter([json.dumps({
                 'error': 'weekly_limit_reached',
-                'message': "You've reached your weekly limit of 100 requests. Your limit resets on Monday.",
-                'limit': 100,
+                'message': f"You've reached your weekly limit of {WEEKLY_LIMIT} requests. Your limit resets on Monday.",
+                'limit': WEEKLY_LIMIT,
             })]))
             return
 
