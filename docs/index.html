@@ -253,22 +253,9 @@
         </div>
         <div
           class="relative aspect-video bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl">
-          <div class="absolute inset-0 flex items-center justify-center">
-            <div
-              class="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center cursor-pointer group hover:bg-primary/20 transition-all">
-              <span class="material-symbols-outlined text-primary text-5xl group-hover:scale-110 transition-transform"
-                style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-            </div>
-          </div>
-          <div
-            class="absolute bottom-6 left-6 right-6 flex justify-between items-center px-4 py-2 rounded-lg bg-surface-container/60 backdrop-blur-md">
-            <span class="text-sm font-medium text-white">How to use LeetCoach Sidebar</span>
-            <span class="text-xs text-on-surface-variant">0:45</span>
-          </div>
-          <!-- Placeholder for video/GIF -->
-          <div
-            class="w-full h-full bg-gradient-to-br from-surface-container-highest to-surface-container-lowest opacity-40">
-          </div>
+          <video class="w-full h-full object-cover" controls>
+            <source src="./demo.mp4" type="video/mp4" />
+          </video>
         </div>
       </div>
     </section>
