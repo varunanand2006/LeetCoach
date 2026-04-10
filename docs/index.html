@@ -1,610 +1,343 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LeetCoach | Your AI Coding Coach on LeetCode</title>
-  <meta name="description" content="Hints, code feedback, and DSA guidance right in your browser. Powered by Claude.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    /* Design Tokens */
-    :root {
-      --bg: #131313;
-      --surface-lowest: #0E0E0E;
-      --surface: #201F1F;
-      --surface-highest: #353534;
-      
-      --glass-bg: rgba(53, 53, 52, 0.6);
-      --glass-blur: blur(12px);
-      
-      --primary: #DDB8FF;
-      --primary-container: #B66DFF;
-      --on-primary: #400071;
-      
-      --secondary: #FFB690;
-      
-      --text: #E5E2E1;
-      --text-muted: #CBC3D7;
-      
-      --ghost-border: rgba(73, 68, 84, 0.2);
-      --ambient-shadow: 0 40px 60px -10px rgba(0, 0, 0, 0.4);
-      --glow-shadow: 0 0 40px -10px rgba(221, 184, 255, 0.2);
-    }
 
-    /* Reset & Base Styles */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
-    body {
-      background-color: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-    }
-
-    h1, h2, h3, h4 {
-      line-height: 1.2;
-      letter-spacing: -0.02em;
-      font-weight: 700;
-    }
-
-    a {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    /* Layout & Utilities */
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 2rem;
-    }
-
-    .section {
-      padding: 8rem 0;
-    }
-
-    .text-center { text-align: center; }
-    .text-muted { color: var(--text-muted); }
-    .accent { color: var(--primary); }
-    
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.875rem 1.75rem;
-      border-radius: 0.75rem;
-      font-weight: 600;
-      font-size: 1rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      border: none;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary), var(--primary-container));
-      color: var(--on-primary);
-      box-shadow: 0 4px 14px 0 rgba(182, 109, 255, 0.39);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(182, 109, 255, 0.23);
-    }
-
-    /* Navigation */
-    nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      padding: 1.5rem 0;
-      background: var(--glass-bg);
-      backdrop-filter: var(--glass-blur);
-      -webkit-backdrop-filter: var(--glass-blur);
-      border-bottom: 1px solid var(--ghost-border);
-      z-index: 1000;
-    }
-
-    .nav-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .logo {
-      font-size: 1.5rem;
-      font-weight: 800;
-      letter-spacing: -0.05em;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    
-    .logo span {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    /* Hero Section */
-    .hero {
-      padding: 12rem 0 8rem;
-      position: relative;
-    }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      top: -20%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 80vmin;
-      height: 80vmin;
-      background: radial-gradient(circle, rgba(182, 109, 255, 0.15) 0%, rgba(19, 19, 19, 0) 70%);
-      pointer-events: none;
-      z-index: -1;
-    }
-
-    .hero h1 {
-      font-size: clamp(3rem, 6vw, 5.5rem);
-      margin-bottom: 1.5rem;
-      max-width: 900px;
-      margin-inline: auto;
-    }
-
-    .hero p {
-      font-size: 1.25rem;
-      color: var(--text-muted);
-      max-width: 600px;
-      margin: 0 auto 3rem;
-    }
-
-    /* How It Works */
-    .steps-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 2rem;
-      margin-top: 4rem;
-    }
-
-    .step-card {
-      background: var(--surface);
-      padding: 2.5rem;
-      border-radius: 1rem;
-      position: relative;
-      border: 1px solid var(--ghost-border);
-      transition: transform 0.3s ease;
-    }
-    
-    .step-card:hover {
-      transform: translateY(-5px);
-    }
-
-    .step-number {
-      font-size: 4rem;
-      font-weight: 800;
-      color: var(--primary);
-      opacity: 0.2;
-      position: absolute;
-      top: 1rem;
-      right: 1.5rem;
-    }
-
-    .step-card h3 {
-      font-size: 1.5rem;
-      margin-bottom: 1rem;
-      color: var(--text);
-    }
-
-    /* Features */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 2rem;
-      margin-top: 4rem;
-    }
-
-    .feature-item {
-      background: var(--surface);
-      border-radius: 1rem;
-      padding: 2.5rem;
-      border: 1px solid var(--ghost-border);
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .feature-item::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 4px;
-      background: linear-gradient(90deg, var(--primary), transparent);
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-
-    .feature-item:hover::before {
-      opacity: 1;
-    }
-
-    .feature-icon {
-      width: 48px;
-      height: 48px;
-      background: var(--surface-highest);
-      border-radius: 0.75rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--primary);
-      margin-bottom: 1rem;
-    }
-    
-    .feature-item:nth-child(2) .feature-icon { color: var(--secondary); }
-
-    /* Demo Section */
-    .demo-container {
-      background: var(--surface-lowest);
-      border-radius: 1rem;
-      padding: 1rem;
-      border: 1px solid var(--ghost-border);
-      box-shadow: var(--ambient-shadow), var(--glow-shadow);
-      margin-top: 4rem;
-      position: relative;
-    }
-
-    .demo-placeholder {
-      aspect-ratio: 16/9;
-      background: var(--surface);
-      border-radius: 0.5rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      border: 1px dashed var(--ghost-border);
-    }
-    
-    .demo-caption {
-      text-align: center;
-      margin-top: 1.5rem;
-      color: var(--text-muted);
-      font-size: 0.875rem;
-    }
-
-    /* Pricing */
-    .pricing-card {
-      background: var(--surface);
-      border: 1px solid var(--primary);
-      border-radius: 1.5rem;
-      padding: 4rem;
-      max-width: 600px;
-      margin: 4rem auto 0;
-      text-align: center;
-      box-shadow: var(--glow-shadow);
-    }
-
-    .price {
-      font-size: 4rem;
-      font-weight: 800;
-      margin: 1rem 0;
-      color: var(--text);
-    }
-
-    .pricing-details {
-      list-style: none;
-      margin: 2rem 0;
-      text-align: left;
-    }
-
-    .pricing-details li {
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      color: var(--text-muted);
-    }
-
-    .pricing-details li::before {
-      content: '✓';
-      color: var(--primary);
-      font-weight: bold;
-    }
-
-    /* FAQ */
-    .faq-grid {
-      max-width: 800px;
-      margin: 4rem auto 0;
-    }
-
-    .faq-item {
-      background: var(--surface);
-      border: 1px solid var(--ghost-border);
-      border-radius: 1rem;
-      padding: 2rem;
-      margin-bottom: 1rem;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-
-    .faq-item:hover {
-      border-color: rgba(221, 184, 255, 0.3);
-    }
-
-    .faq-q {
-      font-size: 1.25rem;
-      font-weight: 600;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .faq-a {
-      margin-top: 1rem;
-      color: var(--text-muted);
-      display: none;
-    }
-
-    .faq-item.active .faq-a {
-      display: block;
-      animation: fadeIn 0.3s ease;
-    }
-
-    .faq-toggle {
-      color: var(--primary);
-      transition: transform 0.3s ease;
-    }
-
-    .faq-item.active .faq-toggle {
-      transform: rotate(45deg);
-    }
-
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--ghost-border);
-      padding: 4rem 0;
-      margin-top: 4rem;
-    }
-
-    .footer-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer-links {
-      display: flex;
-      gap: 2rem;
-    }
-
-    .footer-links a {
-      color: var(--text-muted);
-      transition: color 0.2s ease;
-    }
-
-    .footer-links a:hover {
-      color: var(--primary);
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-      .hero { padding: 8rem 0 4rem; }
-      .hero h1 { font-size: 2.5rem; }
-      
-      .features-grid { grid-template-columns: 1fr; }
-      .footer-content {
-        flex-direction: column;
-        gap: 2rem;
-        text-align: center;
-      }
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  </style>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LeetCoach - Master the Grind with AI Guidance</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#cbc3d7",
+                        "surface-container": "#201f1f",
+                        "background": "#131313",
+                        "surface-variant": "#353534",
+                        "primary-fixed": "#ffdbca",
+                        "tertiary-container": "#ffa116",
+                        "primary-container": "#ffa116",
+                        "surface-container-lowest": "#0e0e0e",
+                        "inverse-on-surface": "#313030",
+                        "secondary-fixed": "#ffdbca",
+                        "surface-tint": "#ffb690",
+                        "on-secondary-fixed-variant": "#783200",
+                        "on-primary": "#4a1c00",
+                        "on-tertiary-container": "#4a1c00",
+                        "outline-variant": "#494454",
+                        "on-tertiary-fixed": "#341100",
+                        "on-primary-fixed": "#341100",
+                        "error-container": "#93000a",
+                        "inverse-surface": "#e5e2e1",
+                        "on-background": "#e5e2e1",
+                        "on-secondary-fixed": "#341100",
+                        "primary-fixed-dim": "#ffb690",
+                        "on-secondary-container": "#4a1c00",
+                        "tertiary-fixed": "#ffdbca",
+                        "primary": "#ffa116",
+                        "surface": "#131313",
+                        "secondary-container": "#ec6a06",
+                        "secondary": "#ffb690",
+                        "error": "#ffb4ab",
+                        "on-primary-container": "#4a1c00",
+                        "on-primary-fixed-variant": "#783200",
+                        "on-tertiary-fixed-variant": "#783200",
+                        "tertiary-fixed-dim": "#ffb690",
+                        "on-tertiary": "#4a1c00",
+                        "inverse-primary": "#ffb690",
+                        "surface-container-low": "#1c1b1b",
+                        "secondary-fixed-dim": "#ffb690",
+                        "outline": "#958ea0",
+                        "surface-container-high": "#2a2a2a",
+                        "surface-bright": "#3a3939",
+                        "on-secondary": "#552100",
+                        "on-surface": "#e5e2e1",
+                        "surface-dim": "#131313",
+                        "tertiary": "#ffb690",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#353534",
+                        "on-error-container": "#ffdad6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Inter"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card {
+            background: rgba(53, 53, 52, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(73, 68, 84, 0.2);
+        }
+        .hero-glow {
+            background: radial-gradient(circle at 50% 50%, rgba(255, 161, 22, 0.1) 0%, transparent 70%);
+        }
+        .perspective-mockup {
+            transform: perspective(1000px) rotateY(-10deg) rotateX(5deg);
+        }
+    </style>
 </head>
-<body>
-
-  <nav>
-    <div class="container nav-content">
-      <div class="logo">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="24" height="24" rx="6" fill="url(#paint0_linear)"/>
-          <path d="M7 16L12 11L17 16" stroke="#400071" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M7 8H17" stroke="#400071" stroke-width="2" stroke-linecap="round"/>
-          <defs>
-            <linearGradient id="paint0_linear" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-              <stop stop-color="#DDB8FF"/>
-              <stop offset="1" stop-color="#FFB690"/>
-            </linearGradient>
-          </defs>
-        </svg>
-        <span>LeetCoach</span>
-      </div>
-      <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank" class="btn btn-primary">Add to Chrome</a>
-    </div>
-  </nav>
-
-  <main>
-    <!-- Hero -->
-    <section class="section hero text-center">
-      <div class="container">
-        <h1>Your AI Coding Coach <br>on <span class="accent">LeetCode</span>.</h1>
-        <p>Hints, code feedback, and DSA guidance — right in your browser. Free.</p>
-        <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank" class="btn btn-primary" style="padding: 1rem 2.5rem; font-size: 1.125rem;">Add to Chrome - It's Free</a>
-      </div>
-    </section>
-
-    <!-- Demo -->
-    <section class="section">
-      <div class="container">
-        <h2 class="text-center">See it in action</h2>
-        <div class="demo-container">
-          <div class="demo-placeholder">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
-          </div>
-        </div>
-        <p class="demo-caption">Watch how LeetCoach integrates directly into your LeetCode workspace.</p>
-      </div>
-    </section>
-
-    <!-- How It Works -->
-    <section class="section" style="background: var(--surface-lowest);">
-      <div class="container">
-        <h2 class="text-center">How It Works</h2>
-        <div class="steps-grid">
-          <div class="step-card">
-            <div class="step-number">1</div>
-            <h3>Install Extension</h3>
-            <p class="text-muted">Add LeetCoach to Chrome and navigate to any LeetCode problem. The coach sidebar will automatically appear.</p>
-          </div>
-          <div class="step-card">
-            <div class="step-number">2</div>
-            <h3>Stuck? Get a Hint</h3>
-            <p class="text-muted">Instead of giving up and looking at the solution, ask the coach for a subtle nudge in the right direction.</p>
-          </div>
-          <div class="step-card">
-            <div class="step-number">3</div>
-            <h3>Solve & Learn</h3>
-            <p class="text-muted">Gradually build your understanding. Get code analysis on complexity and edge cases before you submit.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features -->
-    <section class="section">
-      <div class="container">
-        <h2 class="text-center">Master Algorithms Faster</h2>
-        <div class="features-grid">
-          
-          <div class="feature-item">
-            <div class="feature-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H15"/><path d="M10 21V18"/><path d="M14 21V18"/><path d="M12 18A6 6 0 1 0 6 12C6 14.5 7.5 16 9 17.5C10 18.5 10 18 10 18H14C14 18 14 18.5 15 17.5C16.5 16 18 14.5 18 12A6 6 0 1 0 12 18Z"/></svg>
-            </div>
-            <h3>Hint Mode</h3>
-            <p class="text-muted">Never get completely stuck. Get progressively detailed hints that don't just give you the answer, but teach you how to think.</p>
-          </div>
-
-          <div class="feature-item">
-            <div class="feature-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            </div>
-            <h3>Code Analysis</h3>
-            <p class="text-muted">Get instant feedback on your implementation. Understand your Time & Space complexity before you hit run.</p>
-          </div>
-
-          <div class="feature-item">
-            <div class="feature-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-            </div>
-            <h3>DSA Guidance</h3>
-            <p class="text-muted">Learn the underlying patterns (Sliding Window, DFS, Two Pointers) relevant to the problem to build reusable knowledge.</p>
-          </div>
-
-          <div class="feature-item">
-            <div class="feature-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </div>
-            <h3>Interactive Chat</h3>
-            <p class="text-muted">Have a specific question? Chat directly with the AI coach about your exact code and approach.</p>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
-    <!-- Pricing -->
-    <section class="section" style="background: var(--surface-lowest);">
-      <div class="container">
-        <h2 class="text-center">Simple, Transparent Pricing</h2>
-        <div class="pricing-card">
-          <h3>Basic Plan</h3>
-          <div class="price">Free</div>
-          <p class="text-muted">Everything you need to practice.</p>
-          
-          <ul class="pricing-details">
-            <li>100 AI requests per week</li>
-            <li>Powered by Claude (Anthropic)</li>
-            <li>Works on all LeetCode problems</li>
-            <li>All languages supported</li>
-          </ul>
-          
-          <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank" class="btn btn-primary" style="width: 100%;">Install Now</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- FAQ -->
-    <section class="section">
-      <div class="container">
-        <h2 class="text-center">Frequently Asked Questions</h2>
-        <div class="faq-grid">
-          
-          <div class="faq-item" onclick="this.classList.toggle('active')">
-            <div class="faq-q">
-              Does it just give me the answer?
-              <span class="faq-toggle">+</span>
-            </div>
-            <div class="faq-a">No, hints are graduated across 3 levels. The coach is designed to help you think through the problem, not solve it for you.</div>
-          </div>
-
-          <div class="faq-item" onclick="this.classList.toggle('active')">
-            <div class="faq-q">
-              Is my code private?
-              <span class="faq-toggle">+</span>
-            </div>
-            <div class="faq-a">It's sent to a private backend, never stored. See our <a href="./privacy.html" style="color: var(--primary); text-decoration: underline;">privacy policy</a> for more details.</div>
-          </div>
-
-          <div class="faq-item" onclick="this.classList.toggle('active')">
-            <div class="faq-q">
-              What pages does it work on?
-              <span class="faq-toggle">+</span>
-            </div>
-            <div class="faq-a">LeetCoach currently works exclusively on LeetCode problem pages.</div>
-          </div>
-
-          <div class="faq-item" onclick="this.classList.toggle('active')">
-            <div class="faq-q">
-              What languages are supported?
-              <span class="faq-toggle">+</span>
-            </div>
-            <div class="faq-a">All languages available on LeetCode are supported by the AI coach.</div>
-          </div>
-
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="container footer-content">
-      <div class="logo">
-         <span style="font-size: 1.25rem;">LeetCoach</span>
-      </div>
-      <div class="footer-links">
-        <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank">Chrome Web Store</a>
-        <a href="https://github.com/varunanand2006/LeetCoach" target="_blank">GitHub</a>
-        <a href="./privacy.html">Privacy Policy</a>
-      </div>
-      <p class="text-muted" style="font-size: 0.875rem;">&copy; 2026 LeetCoach. All rights reserved.</p>
-    </div>
-  </footer>
-
-</body>
-</html>
+<body class="bg-background text-on-background selection:bg-primary selection:text-on-primary">
+<!-- TopNavBar -->
+<header class="bg-surface-variant/60 backdrop-blur-xl fixed top-0 w-full z-50 shadow-[0_40px_60px_-10px_rgba(0,0,0,0.4)]">
+<nav class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+<div class="flex items-center gap-3">
+<img alt="LeetCoach Logo" class="w-8 h-8 object-contain rounded-md" src="https://lh3.googleusercontent.com/aida/ADBb0ugaSxqGYpzbYCxk4lTxwBOvFjQY-h0-IbKCEpNTIXSUgofaMja_xYrKqpvCx5m2UtCaIzc2-43LDE5y6n1UvejMyDGcQLB6MqDVlfWtTag7s_GdAVuU-qfNQXTwIIm66glua-WmKhFznYtR9ch32E9KFRQAzid79GTYjxQWfAQft68EHLXSWWlTsWByr65A1txtyVW4D9Z7wVCjxF-SRnWfgoifDZ8ONBHOhCZIFc8F-NQh5Fbmi6rqYUsn8_mRMg9__2bYfGylvts"/>
+<span class="text-xl font-bold tracking-tight text-white">LeetCoach</span>
+</div>
+<div class="hidden md:flex items-center space-x-8">
+<a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#features">Features</a>
+<a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#pricing">Pricing</a>
+<a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#faq">FAQ</a>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary">terminal</span>
+<button class="bg-gradient-to-br from-primary to-secondary text-on-primary font-semibold px-6 py-2.5 rounded-full scale-95 active:scale-90 transition-transform shadow-lg">
+                    Add to Chrome
+                </button>
+</div>
+</nav>
+</header>
+<main class="pt-24">
+<!-- Hero Section -->
+<section class="relative overflow-hidden pt-20 pb-32">
+<div class="absolute inset-0 hero-glow -z-10"></div>
+<div class="max-w-7xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+<div class="space-y-8">
+<h1 class="text-6xl md:text-7xl font-extrabold tracking-tighter text-white leading-[1.1]">
+                        Master the <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Grind</span> with AI Guidance
+                    </h1>
+<p class="text-xl text-on-surface-variant max-w-lg leading-relaxed">
+                        The missing AI coaching sidebar for LeetCode. Get unstuck, understand patterns, and level up your DSA game without the spoilers.
+                    </p>
+<div class="flex flex-col sm:flex-row gap-4 pt-4">
+<button class="bg-gradient-to-br from-primary to-secondary text-on-primary font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(255,161,22,0.4)]">
+<span class="material-symbols-outlined">add_box</span>
+                            Add to Chrome - It's Free
+                        </button>
+<button class="bg-surface-container-highest text-primary font-bold px-8 py-4 rounded-xl hover:bg-white/5 transition-all">
+                            Watch Demo
+                        </button>
+</div>
+<div class="flex items-center gap-4 pt-6 text-on-surface-variant">
+<div class="flex -space-x-2">
+<div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
+<div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
+<div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
+</div>
+<p class="text-sm">Trusted by 2,000+ developers</p>
+</div>
+</div>
+<div class="relative flex justify-center items-center">
+<div class="absolute -inset-10 bg-primary/10 blur-[120px] rounded-full"></div>
+<img alt="LeetCoach Interface" class="perspective-mockup w-full max-w-xl rounded-xl shadow-2xl border border-outline-variant/20" src="https://lh3.googleusercontent.com/aida/ADBb0uh8J5mOJqlWqZ8PwlwAF0Jq6sscPbqQjO-JbgVJYMe5_L_JfcjgU82keTw0uhcwrJtTiVuOWitVLMMlLGbNyQQWJtoa0ZFSJA3NWe1GZgdcPkUr8jg6X0pSwvO0B7aQCRVWNtplh9bahiyPRmUvb5DuDtj0VhF52nhFVedjukhbOCGlLXlX1DEUA4fjEw5u6kvXVP_4g-0CD-VXpgbWI8l4yUYtLtqre8uTNCV5Gdv7BYx5X93taQ1JaU65pLz7wa3Qd05DNX2DlNg"/>
+</div>
+</div>
+</section>
+<!-- How It Works -->
+<section class="py-24 bg-surface-container-low">
+<div class="max-w-7xl mx-auto px-8">
+<div class="text-center mb-20">
+<h2 class="text-3xl font-bold text-white mb-4">Level up in seconds</h2>
+<p class="text-on-surface-variant">Integrated seamlessly into your existing workflow.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="flex flex-col items-center text-center p-8">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
+<span class="material-symbols-outlined text-4xl">open_in_new</span>
+</div>
+<h3 class="text-xl font-bold text-white mb-4">1. Open a Problem</h3>
+<p class="text-on-surface-variant">Navigate to any LeetCode challenge you want to solve.</p>
+</div>
+<div class="flex flex-col items-center text-center p-8">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
+<span class="material-symbols-outlined text-4xl">keyboard_command_key</span>
+</div>
+<h3 class="text-xl font-bold text-white mb-4">2. Trigger Sidebar</h3>
+<p class="text-on-surface-variant">Press <code class="bg-surface-variant px-2 py-1 rounded text-primary">Ctrl+Shift+L</code> to toggle the coach.</p>
+</div>
+<div class="flex flex-col items-center text-center p-8">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
+<span class="material-symbols-outlined text-4xl">psychology</span>
+</div>
+<h3 class="text-xl font-bold text-white mb-4">3. Get Coaching</h3>
+<p class="text-on-surface-variant">Instant hints, code analysis, and DSA insights on demand.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Features -->
+<section class="py-24" id="features">
+<div class="max-w-7xl mx-auto px-8">
+<div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+<div class="max-w-2xl">
+<h2 class="text-4xl font-extrabold text-white mb-6 tracking-tight">Built for the Flow State</h2>
+<p class="text-on-surface-variant text-lg">Stop context-switching. LeetCoach lives inside your browser, providing exactly what you need when you need it.</p>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Feature Card 1 -->
+<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+<div class="text-primary mb-6 transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-3xl">lightbulb</span>
+</div>
+<h3 class="text-xl font-bold text-white mb-3">Hint Mode</h3>
+<p class="text-on-surface-variant leading-relaxed">Graduated hints that nudge you toward the solution without revealing the code.</p>
+</div>
+<!-- Feature Card 2 -->
+<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+<div class="text-primary mb-6 transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-3xl">code_blocks</span>
+</div>
+<h3 class="text-xl font-bold text-white mb-3">Code Analysis</h3>
+<p class="text-on-surface-variant leading-relaxed">Line-by-line feedback on your logic, edge cases, and time/space complexity.</p>
+</div>
+<!-- Feature Card 3 -->
+<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+<div class="text-primary mb-6 transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-3xl">schema</span>
+</div>
+<h3 class="text-xl font-bold text-white mb-3">DSA Guidance</h3>
+<p class="text-on-surface-variant leading-relaxed">Pattern recognition and deep-dives into algorithms relevant to your problem.</p>
+</div>
+<!-- Feature Card 4 -->
+<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+<div class="text-primary mb-6 transition-transform group-hover:scale-110">
+<span class="material-symbols-outlined text-3xl">chat</span>
+</div>
+<h3 class="text-xl font-bold text-white mb-3">Smart Chat</h3>
+<p class="text-on-surface-variant leading-relaxed">A conversation aware of the problem context, powered by Claude 3.5 Sonnet.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Demo -->
+<section class="py-24 bg-surface-container-low">
+<div class="max-w-5xl mx-auto px-8">
+<div class="text-center mb-12">
+<h2 class="text-3xl font-bold text-white mb-4">See it in action</h2>
+</div>
+<div class="relative aspect-video bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl">
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center cursor-pointer group hover:bg-primary/20 transition-all">
+<span class="material-symbols-outlined text-primary text-5xl group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+</div>
+</div>
+<div class="absolute bottom-6 left-6 right-6 flex justify-between items-center px-4 py-2 rounded-lg bg-surface-container/60 backdrop-blur-md">
+<span class="text-sm font-medium text-white">How to use LeetCoach Sidebar</span>
+<span class="text-xs text-on-surface-variant">0:45</span>
+</div>
+<!-- Placeholder for video/GIF -->
+<div class="w-full h-full bg-gradient-to-br from-surface-container-highest to-surface-container-lowest opacity-40"></div>
+</div>
+</div>
+</section>
+<!-- Pricing -->
+<section class="py-24" id="pricing">
+<div class="max-w-4xl mx-auto px-8 text-center">
+<div class="inline-flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-full text-sm font-semibold mb-8">
+<span class="material-symbols-outlined text-lg">celebration</span>
+                    Beta Launch Pricing
+                </div>
+<h2 class="text-4xl font-extrabold text-white mb-8">Simple, Honest Pricing</h2>
+<div class="bg-surface-container p-12 rounded-3xl border border-outline-variant/20 relative overflow-hidden">
+<div class="absolute top-0 right-0 p-8">
+<span class="text-7xl font-black text-white/5 uppercase select-none">Free</span>
+</div>
+<div class="relative z-10">
+<h3 class="text-2xl font-bold text-white mb-2">Always Free</h3>
+<p class="text-5xl font-black text-primary mb-8">$0<span class="text-lg font-normal text-on-surface-variant">/mo</span></p>
+<div class="space-y-4 max-w-xs mx-auto mb-10 text-left">
+<div class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<span>100 AI requests per week</span>
+</div>
+<div class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<span>Powered by Claude (Anthropic)</span>
+</div>
+<div class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<span>All programming languages</span>
+</div>
+<div class="flex items-center gap-3 text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+<span>Community Discord access</span>
+</div>
+</div>
+<button class="w-full bg-gradient-to-r from-primary to-secondary text-on-primary font-bold py-4 rounded-xl shadow-[0_10px_30px_-10px_rgba(255,161,22,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all">
+                            Get Started Now
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- FAQ -->
+<section class="py-24 bg-surface-container-low" id="faq">
+<div class="max-w-3xl mx-auto px-8">
+<h2 class="text-3xl font-bold text-white mb-12 text-center">Frequently Asked Questions</h2>
+<div class="space-y-4">
+<div class="glass-card p-6 rounded-xl">
+<h4 class="text-white font-bold mb-2">Does it just give me the answer?</h4>
+<p class="text-on-surface-variant">No, hints are graduated across 3 levels.</p>
+</div>
+<div class="glass-card p-6 rounded-xl">
+<h4 class="text-white font-bold mb-2">Is my code private?</h4>
+<p class="text-on-surface-variant">It's sent to a private backend, never stored. See <a href="./privacy.html" class="text-primary hover:underline">privacy policy</a>.</p>
+</div>
+<div class="glass-card p-6 rounded-xl">
+<h4 class="text-white font-bold mb-2">What pages does it work on?</h4>
+<p class="text-on-surface-variant">LeetCode problem pages only.</p>
+</div>
+<div class="glass-card p-6 rounded-xl">
+<h4 class="text-white font-bold mb-2">What languages are supported?</h4>
+<p class="text-on-surface-variant">All languages available on LeetCode.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-24">
+<div class="max-w-7xl mx-auto px-8">
+<div class="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-[2rem] p-16 text-center border border-primary/20">
+<h2 class="text-5xl font-black text-white mb-6 tracking-tight">Ready to break the plateau?</h2>
+<p class="text-on-surface-variant text-xl mb-10 max-w-2xl mx-auto leading-relaxed">Join thousands of engineers who are training smarter, not harder. Install LeetCoach today.</p>
+<button class="bg-white text-black font-black px-12 py-5 rounded-full text-lg hover:bg-primary transition-all shadow-xl">
+                        Add to Chrome for Free
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-[#0E0E0E] w-full border-t border-[#494454]/20">
+<div class="flex flex-col md:flex-row justify-between items-center px-12 py-16 w-full max-w-7xl mx-auto">
+<div class="flex flex-col gap-4 mb-8 md:mb-0">
+<div class="flex items-center gap-3">
+<img alt="LeetCoach Logo" class="w-6 h-6 object-contain rounded-sm" src="https://lh3.googleusercontent.com/aida/ADBb0ugaSxqGYpzbYCxk4lTxwBOvFjQY-h0-IbKCEpNTIXSUgofaMja_xYrKqpvCx5m2UtCaIzc2-43LDE5y6n1UvejMyDGcQLB6MqDVlfWtTag7s_GdAVuU-qfNQXTwIIm66glua-WmKhFznYtR9ch32E9KFRQAzid79GTYjxQWfAQft68EHLXSWWlTsWByr65A1txtyVW4D9Z7wVCjxF-SRnWfgoifDZ8ONBHOhCZIFc8F-NQh5Fbmi6rqYUsn8_mRMg9__2bYfGylvts"/>
+<span class="text-lg font-black text-white">LeetCoach</span>
+</div>
+<p class="Inter body-md tracking-normal text-[#CBC3D7]">© 2024 LeetCoach. Built for the Flow State.</p>
+</div>
+<div class="flex gap-8">
+<a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="#">Chrome Web Store</a>
+<a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="#">GitHub</a>
+<a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="./privacy.html">Privacy Policy</a>
+</div>
+</div>
+</footer>
+</body></html>
