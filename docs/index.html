@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeetCoach | Your AI Coding Coach on LeetCode</title>
+  <meta name="description" content="Hints, code feedback, and DSA guidance right in your browser. Powered by Claude.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* Design Tokens */
+    :root {
+      --bg: #131313;
+      --surface-lowest: #0E0E0E;
+      --surface: #201F1F;
+      --surface-highest: #353534;
+      
+      --glass-bg: rgba(53, 53, 52, 0.6);
+      --glass-blur: blur(12px);
+      
+      --primary: #DDB8FF;
+      --primary-container: #B66DFF;
+      --on-primary: #400071;
+      
+      --secondary: #FFB690;
+      
+      --text: #E5E2E1;
+      --text-muted: #CBC3D7;
+      
+      --ghost-border: rgba(73, 68, 84, 0.2);
+      --ambient-shadow: 0 40px 60px -10px rgba(0, 0, 0, 0.4);
+      --glow-shadow: 0 0 40px -10px rgba(221, 184, 255, 0.2);
+    }
+
+    /* Reset & Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4 {
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      font-weight: 700;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* Layout & Utilities */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .section {
+      padding: 8rem 0;
+    }
+
+    .text-center { text-align: center; }
+    .text-muted { color: var(--text-muted); }
+    .accent { color: var(--primary); }
+    
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.875rem 1.75rem;
+      border-radius: 0.75rem;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--primary-container));
+      color: var(--on-primary);
+      box-shadow: 0 4px 14px 0 rgba(182, 109, 255, 0.39);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(182, 109, 255, 0.23);
+    }
+
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 1.5rem 0;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border-bottom: 1px solid var(--ghost-border);
+      z-index: 1000;
+    }
+
+    .nav-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .logo span {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 12rem 0 8rem;
+      position: relative;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80vmin;
+      height: 80vmin;
+      background: radial-gradient(circle, rgba(182, 109, 255, 0.15) 0%, rgba(19, 19, 19, 0) 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .hero h1 {
+      font-size: clamp(3rem, 6vw, 5.5rem);
+      margin-bottom: 1.5rem;
+      max-width: 900px;
+      margin-inline: auto;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 3rem;
+    }
+
+    /* How It Works */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-top: 4rem;
+    }
+
+    .step-card {
+      background: var(--surface);
+      padding: 2.5rem;
+      border-radius: 1rem;
+      position: relative;
+      border: 1px solid var(--ghost-border);
+      transition: transform 0.3s ease;
+    }
+    
+    .step-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .step-number {
+      font-size: 4rem;
+      font-weight: 800;
+      color: var(--primary);
+      opacity: 0.2;
+      position: absolute;
+      top: 1rem;
+      right: 1.5rem;
+    }
+
+    .step-card h3 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    /* Features */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+      margin-top: 4rem;
+    }
+
+    .feature-item {
+      background: var(--surface);
+      border-radius: 1rem;
+      padding: 2.5rem;
+      border: 1px solid var(--ghost-border);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-item::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, var(--primary), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .feature-item:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--surface-highest);
+      border-radius: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--primary);
+      margin-bottom: 1rem;
+    }
+    
+    .feature-item:nth-child(2) .feature-icon { color: var(--secondary); }
+
+    /* Demo Section */
+    .demo-container {
+      background: var(--surface-lowest);
+      border-radius: 1rem;
+      padding: 1rem;
+      border: 1px solid var(--ghost-border);
+      box-shadow: var(--ambient-shadow), var(--glow-shadow);
+      margin-top: 4rem;
+      position: relative;
+    }
+
+    .demo-placeholder {
+      aspect-ratio: 16/9;
+      background: var(--surface);
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      border: 1px dashed var(--ghost-border);
+    }
+    
+    .demo-caption {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    /* Pricing */
+    .pricing-card {
+      background: var(--surface);
+      border: 1px solid var(--primary);
+      border-radius: 1.5rem;
+      padding: 4rem;
+      max-width: 600px;
+      margin: 4rem auto 0;
+      text-align: center;
+      box-shadow: var(--glow-shadow);
+    }
+
+    .price {
+      font-size: 4rem;
+      font-weight: 800;
+      margin: 1rem 0;
+      color: var(--text);
+    }
+
+    .pricing-details {
+      list-style: none;
+      margin: 2rem 0;
+      text-align: left;
+    }
+
+    .pricing-details li {
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      color: var(--text-muted);
+    }
+
+    .pricing-details li::before {
+      content: '✓';
+      color: var(--primary);
+      font-weight: bold;
+    }
+
+    /* FAQ */
+    .faq-grid {
+      max-width: 800px;
+      margin: 4rem auto 0;
+    }
+
+    .faq-item {
+      background: var(--surface);
+      border: 1px solid var(--ghost-border);
+      border-radius: 1rem;
+      padding: 2rem;
+      margin-bottom: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .faq-item:hover {
+      border-color: rgba(221, 184, 255, 0.3);
+    }
+
+    .faq-q {
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .faq-a {
+      margin-top: 1rem;
+      color: var(--text-muted);
+      display: none;
+    }
+
+    .faq-item.active .faq-a {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .faq-toggle {
+      color: var(--primary);
+      transition: transform 0.3s ease;
+    }
+
+    .faq-item.active .faq-toggle {
+      transform: rotate(45deg);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--ghost-border);
+      padding: 4rem 0;
+      margin-top: 4rem;
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      transition: color 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero { padding: 8rem 0 4rem; }
+      .hero h1 { font-size: 2.5rem; }
+      
+      .features-grid { grid-template-columns: 1fr; }
+      .footer-content {
+        flex-direction: column;
+        gap: 2rem;
+        text-align: center;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="container nav-content">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="24" height="24" rx="6" fill="url(#paint0_linear)"/>
+          <path d="M7 16L12 11L17 16" stroke="#400071" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7 8H17" stroke="#400071" stroke-width="2" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="paint0_linear" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#DDB8FF"/>
+              <stop offset="1" stop-color="#FFB690"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span>LeetCoach</span>
+      </div>
+      <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank" class="btn btn-primary">Add to Chrome</a>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Hero -->
+    <section class="section hero text-center">
+      <div class="container">
+        <h1>Your AI Coding Coach <br>on <span class="accent">LeetCode</span>.</h1>
+        <p>Hints, code feedback, and DSA guidance — right in your browser. Free.</p>
+        <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank" class="btn btn-primary" style="padding: 1rem 2.5rem; font-size: 1.125rem;">Add to Chrome - It's Free</a>
+      </div>
+    </section>
+
+    <!-- Demo -->
+    <section class="section">
+      <div class="container">
+        <h2 class="text-center">See it in action</h2>
+        <div class="demo-container">
+          <div class="demo-placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+          </div>
+        </div>
+        <p class="demo-caption">Watch how LeetCoach integrates directly into your LeetCode workspace.</p>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section" style="background: var(--surface-lowest);">
+      <div class="container">
+        <h2 class="text-center">How It Works</h2>
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <h3>Install Extension</h3>
+            <p class="text-muted">Add LeetCoach to Chrome and navigate to any LeetCode problem. The coach sidebar will automatically appear.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <h3>Stuck? Get a Hint</h3>
+            <p class="text-muted">Instead of giving up and looking at the solution, ask the coach for a subtle nudge in the right direction.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <h3>Solve & Learn</h3>
+            <p class="text-muted">Gradually build your understanding. Get code analysis on complexity and edge cases before you submit.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section">
+      <div class="container">
+        <h2 class="text-center">Master Algorithms Faster</h2>
+        <div class="features-grid">
+          
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H15"/><path d="M10 21V18"/><path d="M14 21V18"/><path d="M12 18A6 6 0 1 0 6 12C6 14.5 7.5 16 9 17.5C10 18.5 10 18 10 18H14C14 18 14 18.5 15 17.5C16.5 16 18 14.5 18 12A6 6 0 1 0 12 18Z"/></svg>
+            </div>
+            <h3>Hint Mode</h3>
+            <p class="text-muted">Never get completely stuck. Get progressively detailed hints that don't just give you the answer, but teach you how to think.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </div>
+            <h3>Code Analysis</h3>
+            <p class="text-muted">Get instant feedback on your implementation. Understand your Time & Space complexity before you hit run.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            </div>
+            <h3>DSA Guidance</h3>
+            <p class="text-muted">Learn the underlying patterns (Sliding Window, DFS, Two Pointers) relevant to the problem to build reusable knowledge.</p>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3>Interactive Chat</h3>
+            <p class="text-muted">Have a specific question? Chat directly with the AI coach about your exact code and approach.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="section" style="background: var(--surface-lowest);">
+      <div class="container">
+        <h2 class="text-center">Simple, Transparent Pricing</h2>
+        <div class="pricing-card">
+          <h3>Basic Plan</h3>
+          <div class="price">Free</div>
+          <p class="text-muted">Everything you need to practice.</p>
+          
+          <ul class="pricing-details">
+            <li>100 AI requests per week</li>
+            <li>Powered by Claude (Anthropic)</li>
+            <li>Works on all LeetCode problems</li>
+            <li>All languages supported</li>
+          </ul>
+          
+          <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank" class="btn btn-primary" style="width: 100%;">Install Now</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section">
+      <div class="container">
+        <h2 class="text-center">Frequently Asked Questions</h2>
+        <div class="faq-grid">
+          
+          <div class="faq-item" onclick="this.classList.toggle('active')">
+            <div class="faq-q">
+              Does it just give me the answer?
+              <span class="faq-toggle">+</span>
+            </div>
+            <div class="faq-a">No, hints are graduated across 3 levels. The coach is designed to help you think through the problem, not solve it for you.</div>
+          </div>
+
+          <div class="faq-item" onclick="this.classList.toggle('active')">
+            <div class="faq-q">
+              Is my code private?
+              <span class="faq-toggle">+</span>
+            </div>
+            <div class="faq-a">It's sent to a private backend, never stored. See our <a href="./privacy.html" style="color: var(--primary); text-decoration: underline;">privacy policy</a> for more details.</div>
+          </div>
+
+          <div class="faq-item" onclick="this.classList.toggle('active')">
+            <div class="faq-q">
+              What pages does it work on?
+              <span class="faq-toggle">+</span>
+            </div>
+            <div class="faq-a">LeetCoach currently works exclusively on LeetCode problem pages.</div>
+          </div>
+
+          <div class="faq-item" onclick="this.classList.toggle('active')">
+            <div class="faq-q">
+              What languages are supported?
+              <span class="faq-toggle">+</span>
+            </div>
+            <div class="faq-a">All languages available on LeetCode are supported by the AI coach.</div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container footer-content">
+      <div class="logo">
+         <span style="font-size: 1.25rem;">LeetCoach</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank">Chrome Web Store</a>
+        <a href="https://github.com/varunanand2006/LeetCoach" target="_blank">GitHub</a>
+        <a href="./privacy.html">Privacy Policy</a>
+      </div>
+      <p class="text-muted" style="font-size: 0.875rem;">&copy; 2026 LeetCoach. All rights reserved.</p>
+    </div>
+  </footer>
+
+</body>
+</html>
