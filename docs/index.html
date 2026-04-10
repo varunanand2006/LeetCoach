@@ -1,343 +1,387 @@
 <!DOCTYPE html>
 
-<html class="dark" lang="en"><head>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>LeetCoach - Master the Grind with AI Guidance</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "on-surface-variant": "#cbc3d7",
-                        "surface-container": "#201f1f",
-                        "background": "#131313",
-                        "surface-variant": "#353534",
-                        "primary-fixed": "#ffdbca",
-                        "tertiary-container": "#ffa116",
-                        "primary-container": "#ffa116",
-                        "surface-container-lowest": "#0e0e0e",
-                        "inverse-on-surface": "#313030",
-                        "secondary-fixed": "#ffdbca",
-                        "surface-tint": "#ffb690",
-                        "on-secondary-fixed-variant": "#783200",
-                        "on-primary": "#4a1c00",
-                        "on-tertiary-container": "#4a1c00",
-                        "outline-variant": "#494454",
-                        "on-tertiary-fixed": "#341100",
-                        "on-primary-fixed": "#341100",
-                        "error-container": "#93000a",
-                        "inverse-surface": "#e5e2e1",
-                        "on-background": "#e5e2e1",
-                        "on-secondary-fixed": "#341100",
-                        "primary-fixed-dim": "#ffb690",
-                        "on-secondary-container": "#4a1c00",
-                        "tertiary-fixed": "#ffdbca",
-                        "primary": "#ffa116",
-                        "surface": "#131313",
-                        "secondary-container": "#ec6a06",
-                        "secondary": "#ffb690",
-                        "error": "#ffb4ab",
-                        "on-primary-container": "#4a1c00",
-                        "on-primary-fixed-variant": "#783200",
-                        "on-tertiary-fixed-variant": "#783200",
-                        "tertiary-fixed-dim": "#ffb690",
-                        "on-tertiary": "#4a1c00",
-                        "inverse-primary": "#ffb690",
-                        "surface-container-low": "#1c1b1b",
-                        "secondary-fixed-dim": "#ffb690",
-                        "outline": "#958ea0",
-                        "surface-container-high": "#2a2a2a",
-                        "surface-bright": "#3a3939",
-                        "on-secondary": "#552100",
-                        "on-surface": "#e5e2e1",
-                        "surface-dim": "#131313",
-                        "tertiary": "#ffb690",
-                        "on-error": "#690005",
-                        "surface-container-highest": "#353534",
-                        "on-error-container": "#ffdad6"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "fontFamily": {
-                        "headline": ["Inter"],
-                        "body": ["Inter"],
-                        "label": ["Inter"]
-                    }
-                },
-            },
-        }
-    </script>
-<style>
-        body { font-family: 'Inter', sans-serif; }
-        .glass-card {
-            background: rgba(53, 53, 52, 0.6);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(73, 68, 84, 0.2);
-        }
-        .hero-glow {
-            background: radial-gradient(circle at 50% 50%, rgba(255, 161, 22, 0.1) 0%, transparent 70%);
-        }
-        .perspective-mockup {
-            transform: perspective(1000px) rotateY(-10deg) rotateX(5deg);
-        }
-    </style>
+<html class="dark" lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>LeetCoach - Master the Grind with AI Guidance</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+    rel="stylesheet" />
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-surface-variant": "#cbc3d7",
+            "surface-container": "#201f1f",
+            "background": "#131313",
+            "surface-variant": "#353534",
+            "primary-fixed": "#ffdbca",
+            "tertiary-container": "#ffa116",
+            "primary-container": "#ffa116",
+            "surface-container-lowest": "#0e0e0e",
+            "inverse-on-surface": "#313030",
+            "secondary-fixed": "#ffdbca",
+            "surface-tint": "#ffb690",
+            "on-secondary-fixed-variant": "#783200",
+            "on-primary": "#4a1c00",
+            "on-tertiary-container": "#4a1c00",
+            "outline-variant": "#494454",
+            "on-tertiary-fixed": "#341100",
+            "on-primary-fixed": "#341100",
+            "error-container": "#93000a",
+            "inverse-surface": "#e5e2e1",
+            "on-background": "#e5e2e1",
+            "on-secondary-fixed": "#341100",
+            "primary-fixed-dim": "#ffb690",
+            "on-secondary-container": "#4a1c00",
+            "tertiary-fixed": "#ffdbca",
+            "primary": "#ffa116",
+            "surface": "#131313",
+            "secondary-container": "#ec6a06",
+            "secondary": "#ffb690",
+            "error": "#ffb4ab",
+            "on-primary-container": "#4a1c00",
+            "on-primary-fixed-variant": "#783200",
+            "on-tertiary-fixed-variant": "#783200",
+            "tertiary-fixed-dim": "#ffb690",
+            "on-tertiary": "#4a1c00",
+            "inverse-primary": "#ffb690",
+            "surface-container-low": "#1c1b1b",
+            "secondary-fixed-dim": "#ffb690",
+            "outline": "#958ea0",
+            "surface-container-high": "#2a2a2a",
+            "surface-bright": "#3a3939",
+            "on-secondary": "#552100",
+            "on-surface": "#e5e2e1",
+            "surface-dim": "#131313",
+            "tertiary": "#ffb690",
+            "on-error": "#690005",
+            "surface-container-highest": "#353534",
+            "on-error-container": "#ffdad6"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "fontFamily": {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          }
+        },
+      },
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    .glass-card {
+      background: rgba(53, 53, 52, 0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(73, 68, 84, 0.2);
+    }
+
+    .hero-glow {
+      background: radial-gradient(circle at 50% 50%, rgba(255, 161, 22, 0.1) 0%, transparent 70%);
+    }
+
+    .perspective-mockup {
+      transform: perspective(1000px) rotateY(-10deg) rotateX(5deg);
+    }
+  </style>
 </head>
+
 <body class="bg-background text-on-background selection:bg-primary selection:text-on-primary">
-<!-- TopNavBar -->
-<header class="bg-surface-variant/60 backdrop-blur-xl fixed top-0 w-full z-50 shadow-[0_40px_60px_-10px_rgba(0,0,0,0.4)]">
-<nav class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
-<div class="flex items-center gap-3">
-<img alt="LeetCoach Logo" class="w-8 h-8 object-contain rounded-md" src="https://lh3.googleusercontent.com/aida/ADBb0ugaSxqGYpzbYCxk4lTxwBOvFjQY-h0-IbKCEpNTIXSUgofaMja_xYrKqpvCx5m2UtCaIzc2-43LDE5y6n1UvejMyDGcQLB6MqDVlfWtTag7s_GdAVuU-qfNQXTwIIm66glua-WmKhFznYtR9ch32E9KFRQAzid79GTYjxQWfAQft68EHLXSWWlTsWByr65A1txtyVW4D9Z7wVCjxF-SRnWfgoifDZ8ONBHOhCZIFc8F-NQh5Fbmi6rqYUsn8_mRMg9__2bYfGylvts"/>
-<span class="text-xl font-bold tracking-tight text-white">LeetCoach</span>
-</div>
-<div class="hidden md:flex items-center space-x-8">
-<a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#features">Features</a>
-<a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#pricing">Pricing</a>
-<a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#faq">FAQ</a>
-</div>
-<div class="flex items-center gap-4">
-<span class="material-symbols-outlined text-primary">terminal</span>
-<button class="bg-gradient-to-br from-primary to-secondary text-on-primary font-semibold px-6 py-2.5 rounded-full scale-95 active:scale-90 transition-transform shadow-lg">
-                    Add to Chrome
-                </button>
-</div>
-</nav>
-</header>
-<main class="pt-24">
-<!-- Hero Section -->
-<section class="relative overflow-hidden pt-20 pb-32">
-<div class="absolute inset-0 hero-glow -z-10"></div>
-<div class="max-w-7xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-<div class="space-y-8">
-<h1 class="text-6xl md:text-7xl font-extrabold tracking-tighter text-white leading-[1.1]">
-                        Master the <span class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Grind</span> with AI Guidance
-                    </h1>
-<p class="text-xl text-on-surface-variant max-w-lg leading-relaxed">
-                        The missing AI coaching sidebar for LeetCode. Get unstuck, understand patterns, and level up your DSA game without the spoilers.
-                    </p>
-<div class="flex flex-col sm:flex-row gap-4 pt-4">
-<button class="bg-gradient-to-br from-primary to-secondary text-on-primary font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(255,161,22,0.4)]">
-<span class="material-symbols-outlined">add_box</span>
-                            Add to Chrome - It's Free
-                        </button>
-<button class="bg-surface-container-highest text-primary font-bold px-8 py-4 rounded-xl hover:bg-white/5 transition-all">
-                            Watch Demo
-                        </button>
-</div>
-<div class="flex items-center gap-4 pt-6 text-on-surface-variant">
-<div class="flex -space-x-2">
-<div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
-<div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
-<div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
-</div>
-<p class="text-sm">Trusted by 2,000+ developers</p>
-</div>
-</div>
-<div class="relative flex justify-center items-center">
-<div class="absolute -inset-10 bg-primary/10 blur-[120px] rounded-full"></div>
-<img alt="LeetCoach Interface" class="perspective-mockup w-full max-w-xl rounded-xl shadow-2xl border border-outline-variant/20" src="https://lh3.googleusercontent.com/aida/ADBb0uh8J5mOJqlWqZ8PwlwAF0Jq6sscPbqQjO-JbgVJYMe5_L_JfcjgU82keTw0uhcwrJtTiVuOWitVLMMlLGbNyQQWJtoa0ZFSJA3NWe1GZgdcPkUr8jg6X0pSwvO0B7aQCRVWNtplh9bahiyPRmUvb5DuDtj0VhF52nhFVedjukhbOCGlLXlX1DEUA4fjEw5u6kvXVP_4g-0CD-VXpgbWI8l4yUYtLtqre8uTNCV5Gdv7BYx5X93taQ1JaU65pLz7wa3Qd05DNX2DlNg"/>
-</div>
-</div>
-</section>
-<!-- How It Works -->
-<section class="py-24 bg-surface-container-low">
-<div class="max-w-7xl mx-auto px-8">
-<div class="text-center mb-20">
-<h2 class="text-3xl font-bold text-white mb-4">Level up in seconds</h2>
-<p class="text-on-surface-variant">Integrated seamlessly into your existing workflow.</p>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-<div class="flex flex-col items-center text-center p-8">
-<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
-<span class="material-symbols-outlined text-4xl">open_in_new</span>
-</div>
-<h3 class="text-xl font-bold text-white mb-4">1. Open a Problem</h3>
-<p class="text-on-surface-variant">Navigate to any LeetCode challenge you want to solve.</p>
-</div>
-<div class="flex flex-col items-center text-center p-8">
-<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
-<span class="material-symbols-outlined text-4xl">keyboard_command_key</span>
-</div>
-<h3 class="text-xl font-bold text-white mb-4">2. Trigger Sidebar</h3>
-<p class="text-on-surface-variant">Press <code class="bg-surface-variant px-2 py-1 rounded text-primary">Ctrl+Shift+L</code> to toggle the coach.</p>
-</div>
-<div class="flex flex-col items-center text-center p-8">
-<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
-<span class="material-symbols-outlined text-4xl">psychology</span>
-</div>
-<h3 class="text-xl font-bold text-white mb-4">3. Get Coaching</h3>
-<p class="text-on-surface-variant">Instant hints, code analysis, and DSA insights on demand.</p>
-</div>
-</div>
-</div>
-</section>
-<!-- Features -->
-<section class="py-24" id="features">
-<div class="max-w-7xl mx-auto px-8">
-<div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
-<div class="max-w-2xl">
-<h2 class="text-4xl font-extrabold text-white mb-6 tracking-tight">Built for the Flow State</h2>
-<p class="text-on-surface-variant text-lg">Stop context-switching. LeetCoach lives inside your browser, providing exactly what you need when you need it.</p>
-</div>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-<!-- Feature Card 1 -->
-<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
-<div class="text-primary mb-6 transition-transform group-hover:scale-110">
-<span class="material-symbols-outlined text-3xl">lightbulb</span>
-</div>
-<h3 class="text-xl font-bold text-white mb-3">Hint Mode</h3>
-<p class="text-on-surface-variant leading-relaxed">Graduated hints that nudge you toward the solution without revealing the code.</p>
-</div>
-<!-- Feature Card 2 -->
-<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
-<div class="text-primary mb-6 transition-transform group-hover:scale-110">
-<span class="material-symbols-outlined text-3xl">code_blocks</span>
-</div>
-<h3 class="text-xl font-bold text-white mb-3">Code Analysis</h3>
-<p class="text-on-surface-variant leading-relaxed">Line-by-line feedback on your logic, edge cases, and time/space complexity.</p>
-</div>
-<!-- Feature Card 3 -->
-<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
-<div class="text-primary mb-6 transition-transform group-hover:scale-110">
-<span class="material-symbols-outlined text-3xl">schema</span>
-</div>
-<h3 class="text-xl font-bold text-white mb-3">DSA Guidance</h3>
-<p class="text-on-surface-variant leading-relaxed">Pattern recognition and deep-dives into algorithms relevant to your problem.</p>
-</div>
-<!-- Feature Card 4 -->
-<div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
-<div class="text-primary mb-6 transition-transform group-hover:scale-110">
-<span class="material-symbols-outlined text-3xl">chat</span>
-</div>
-<h3 class="text-xl font-bold text-white mb-3">Smart Chat</h3>
-<p class="text-on-surface-variant leading-relaxed">A conversation aware of the problem context, powered by Claude 3.5 Sonnet.</p>
-</div>
-</div>
-</div>
-</section>
-<!-- Demo -->
-<section class="py-24 bg-surface-container-low">
-<div class="max-w-5xl mx-auto px-8">
-<div class="text-center mb-12">
-<h2 class="text-3xl font-bold text-white mb-4">See it in action</h2>
-</div>
-<div class="relative aspect-video bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl">
-<div class="absolute inset-0 flex items-center justify-center">
-<div class="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center cursor-pointer group hover:bg-primary/20 transition-all">
-<span class="material-symbols-outlined text-primary text-5xl group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-</div>
-</div>
-<div class="absolute bottom-6 left-6 right-6 flex justify-between items-center px-4 py-2 rounded-lg bg-surface-container/60 backdrop-blur-md">
-<span class="text-sm font-medium text-white">How to use LeetCoach Sidebar</span>
-<span class="text-xs text-on-surface-variant">0:45</span>
-</div>
-<!-- Placeholder for video/GIF -->
-<div class="w-full h-full bg-gradient-to-br from-surface-container-highest to-surface-container-lowest opacity-40"></div>
-</div>
-</div>
-</section>
-<!-- Pricing -->
-<section class="py-24" id="pricing">
-<div class="max-w-4xl mx-auto px-8 text-center">
-<div class="inline-flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-full text-sm font-semibold mb-8">
-<span class="material-symbols-outlined text-lg">celebration</span>
-                    Beta Launch Pricing
-                </div>
-<h2 class="text-4xl font-extrabold text-white mb-8">Simple, Honest Pricing</h2>
-<div class="bg-surface-container p-12 rounded-3xl border border-outline-variant/20 relative overflow-hidden">
-<div class="absolute top-0 right-0 p-8">
-<span class="text-7xl font-black text-white/5 uppercase select-none">Free</span>
-</div>
-<div class="relative z-10">
-<h3 class="text-2xl font-bold text-white mb-2">Always Free</h3>
-<p class="text-5xl font-black text-primary mb-8">$0<span class="text-lg font-normal text-on-surface-variant">/mo</span></p>
-<div class="space-y-4 max-w-xs mx-auto mb-10 text-left">
-<div class="flex items-center gap-3 text-on-surface">
-<span class="material-symbols-outlined text-primary">check_circle</span>
-<span>100 AI requests per week</span>
-</div>
-<div class="flex items-center gap-3 text-on-surface">
-<span class="material-symbols-outlined text-primary">check_circle</span>
-<span>Powered by Claude (Anthropic)</span>
-</div>
-<div class="flex items-center gap-3 text-on-surface">
-<span class="material-symbols-outlined text-primary">check_circle</span>
-<span>All programming languages</span>
-</div>
-<div class="flex items-center gap-3 text-on-surface">
-<span class="material-symbols-outlined text-primary">check_circle</span>
-<span>Community Discord access</span>
-</div>
-</div>
-<button class="w-full bg-gradient-to-r from-primary to-secondary text-on-primary font-bold py-4 rounded-xl shadow-[0_10px_30px_-10px_rgba(255,161,22,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all">
-                            Get Started Now
-                        </button>
-</div>
-</div>
-</div>
-</section>
-<!-- FAQ -->
-<section class="py-24 bg-surface-container-low" id="faq">
-<div class="max-w-3xl mx-auto px-8">
-<h2 class="text-3xl font-bold text-white mb-12 text-center">Frequently Asked Questions</h2>
-<div class="space-y-4">
-<div class="glass-card p-6 rounded-xl">
-<h4 class="text-white font-bold mb-2">Does it just give me the answer?</h4>
-<p class="text-on-surface-variant">No, hints are graduated across 3 levels.</p>
-</div>
-<div class="glass-card p-6 rounded-xl">
-<h4 class="text-white font-bold mb-2">Is my code private?</h4>
-<p class="text-on-surface-variant">It's sent to a private backend, never stored. See <a href="./privacy.html" class="text-primary hover:underline">privacy policy</a>.</p>
-</div>
-<div class="glass-card p-6 rounded-xl">
-<h4 class="text-white font-bold mb-2">What pages does it work on?</h4>
-<p class="text-on-surface-variant">LeetCode problem pages only.</p>
-</div>
-<div class="glass-card p-6 rounded-xl">
-<h4 class="text-white font-bold mb-2">What languages are supported?</h4>
-<p class="text-on-surface-variant">All languages available on LeetCode.</p>
-</div>
-</div>
-</div>
-</section>
-<!-- CTA Section -->
-<section class="py-24">
-<div class="max-w-7xl mx-auto px-8">
-<div class="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-[2rem] p-16 text-center border border-primary/20">
-<h2 class="text-5xl font-black text-white mb-6 tracking-tight">Ready to break the plateau?</h2>
-<p class="text-on-surface-variant text-xl mb-10 max-w-2xl mx-auto leading-relaxed">Join thousands of engineers who are training smarter, not harder. Install LeetCoach today.</p>
-<button class="bg-white text-black font-black px-12 py-5 rounded-full text-lg hover:bg-primary transition-all shadow-xl">
-                        Add to Chrome for Free
-                    </button>
-</div>
-</div>
-</section>
-</main>
-<!-- Footer -->
-<footer class="bg-[#0E0E0E] w-full border-t border-[#494454]/20">
-<div class="flex flex-col md:flex-row justify-between items-center px-12 py-16 w-full max-w-7xl mx-auto">
-<div class="flex flex-col gap-4 mb-8 md:mb-0">
-<div class="flex items-center gap-3">
-<img alt="LeetCoach Logo" class="w-6 h-6 object-contain rounded-sm" src="https://lh3.googleusercontent.com/aida/ADBb0ugaSxqGYpzbYCxk4lTxwBOvFjQY-h0-IbKCEpNTIXSUgofaMja_xYrKqpvCx5m2UtCaIzc2-43LDE5y6n1UvejMyDGcQLB6MqDVlfWtTag7s_GdAVuU-qfNQXTwIIm66glua-WmKhFznYtR9ch32E9KFRQAzid79GTYjxQWfAQft68EHLXSWWlTsWByr65A1txtyVW4D9Z7wVCjxF-SRnWfgoifDZ8ONBHOhCZIFc8F-NQh5Fbmi6rqYUsn8_mRMg9__2bYfGylvts"/>
-<span class="text-lg font-black text-white">LeetCoach</span>
-</div>
-<p class="Inter body-md tracking-normal text-[#CBC3D7]">© 2024 LeetCoach. Built for the Flow State.</p>
-</div>
-<div class="flex gap-8">
-<a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="#">Chrome Web Store</a>
-<a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="#">GitHub</a>
-<a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="./privacy.html">Privacy Policy</a>
-</div>
-</div>
-</footer>
-</body></html>
+  <!-- TopNavBar -->
+  <header
+    class="bg-surface-variant/60 backdrop-blur-xl fixed top-0 w-full z-50 shadow-[0_40px_60px_-10px_rgba(0,0,0,0.4)]">
+    <nav class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+      <div class="flex items-center gap-3">
+        <img alt="LeetCoach Logo" class="w-8 h-8 object-contain rounded-md"
+          src="https://lh3.googleusercontent.com/aida/ADBb0ugaSxqGYpzbYCxk4lTxwBOvFjQY-h0-IbKCEpNTIXSUgofaMja_xYrKqpvCx5m2UtCaIzc2-43LDE5y6n1UvejMyDGcQLB6MqDVlfWtTag7s_GdAVuU-qfNQXTwIIm66glua-WmKhFznYtR9ch32E9KFRQAzid79GTYjxQWfAQft68EHLXSWWlTsWByr65A1txtyVW4D9Z7wVCjxF-SRnWfgoifDZ8ONBHOhCZIFc8F-NQh5Fbmi6rqYUsn8_mRMg9__2bYfGylvts" />
+        <span class="text-xl font-bold tracking-tight text-white">LeetCoach</span>
+      </div>
+      <div class="hidden md:flex items-center space-x-8">
+        <a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium"
+          href="#features">Features</a>
+        <a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#pricing">Pricing</a>
+        <a class="text-[#CBC3D7] hover:text-white transition-colors Inter tight font-medium" href="#faq">FAQ</a>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="material-symbols-outlined text-primary">terminal</span>
+        <button
+          class="bg-gradient-to-br from-primary to-secondary text-on-primary font-semibold px-6 py-2.5 rounded-full scale-95 active:scale-90 transition-transform shadow-lg">
+          Add to Chrome
+        </button>
+      </div>
+    </nav>
+  </header>
+  <main class="pt-24">
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden pt-20 pb-32">
+      <div class="absolute inset-0 hero-glow -z-10"></div>
+      <div class="max-w-7xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        <div class="space-y-8">
+          <h1 class="text-6xl md:text-7xl font-extrabold tracking-tighter text-white leading-[1.1]">
+            Master the <span
+              class="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Grind</span> with AI
+            Guidance
+          </h1>
+          <p class="text-xl text-on-surface-variant max-w-lg leading-relaxed">
+            The missing AI coaching sidebar for LeetCode. Get unstuck, understand patterns, and level up your DSA game
+            without the spoilers.
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4 pt-4">
+            <button
+              class="bg-gradient-to-br from-primary to-secondary text-on-primary font-bold px-8 py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(255,161,22,0.4)]">
+              <span class="material-symbols-outlined">add_box</span>
+              Add to Chrome - It's Free
+            </button>
+            <button
+              class="bg-surface-container-highest text-primary font-bold px-8 py-4 rounded-xl hover:bg-white/5 transition-all">
+              Watch Demo
+            </button>
+          </div>
+          <div class="flex items-center gap-4 pt-6 text-on-surface-variant">
+            <div class="flex -space-x-2">
+              <div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
+              <div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
+              <div class="w-8 h-8 rounded-full border-2 border-background bg-surface-container"></div>
+            </div>
+            <p class="text-sm">Trusted by 2,000+ developers</p>
+          </div>
+        </div>
+        <div class="relative flex justify-center items-center">
+          <div class="absolute -inset-10 bg-primary/10 blur-[120px] rounded-full"></div>
+          <img alt="LeetCoach Interface"
+            class="perspective-mockup w-full max-w-xl rounded-xl shadow-2xl border border-outline-variant/20"
+            src="https://lh3.googleusercontent.com/aida/ADBb0uh8J5mOJqlWqZ8PwlwAF0Jq6sscPbqQjO-JbgVJYMe5_L_JfcjgU82keTw0uhcwrJtTiVuOWitVLMMlLGbNyQQWJtoa0ZFSJA3NWe1GZgdcPkUr8jg6X0pSwvO0B7aQCRVWNtplh9bahiyPRmUvb5DuDtj0VhF52nhFVedjukhbOCGlLXlX1DEUA4fjEw5u6kvXVP_4g-0CD-VXpgbWI8l4yUYtLtqre8uTNCV5Gdv7BYx5X93taQ1JaU65pLz7wa3Qd05DNX2DlNg" />
+        </div>
+      </div>
+    </section>
+    <!-- How It Works -->
+    <section class="py-24 bg-surface-container-low">
+      <div class="max-w-7xl mx-auto px-8">
+        <div class="text-center mb-20">
+          <h2 class="text-3xl font-bold text-white mb-4">Level up in seconds</h2>
+          <p class="text-on-surface-variant">Integrated seamlessly into your existing workflow.</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div class="flex flex-col items-center text-center p-8">
+            <div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
+              <span class="material-symbols-outlined text-4xl">open_in_new</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-4">1. Open a Problem</h3>
+            <p class="text-on-surface-variant">Navigate to any LeetCode challenge you want to solve.</p>
+          </div>
+          <div class="flex flex-col items-center text-center p-8">
+            <div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
+              <span class="material-symbols-outlined text-4xl">keyboard_command_key</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-4">2. Trigger Sidebar</h3>
+            <p class="text-on-surface-variant">Press <code
+                class="bg-surface-variant px-2 py-1 rounded text-primary">Ctrl+Shift+L</code> to toggle the coach.</p>
+          </div>
+          <div class="flex flex-col items-center text-center p-8">
+            <div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary mb-6">
+              <span class="material-symbols-outlined text-4xl">psychology</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-4">3. Get Coaching</h3>
+            <p class="text-on-surface-variant">Instant hints, code analysis, and DSA insights on demand.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Features -->
+    <section class="py-24" id="features">
+      <div class="max-w-7xl mx-auto px-8">
+        <div class="flex flex-col md:flex-row justify-between items-end mb-16 gap-8">
+          <div class="max-w-2xl">
+            <h2 class="text-4xl font-extrabold text-white mb-6 tracking-tight">Built for the Flow State</h2>
+            <p class="text-on-surface-variant text-lg">Stop context-switching. LeetCoach lives inside your browser,
+              providing exactly what you need when you need it.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Feature Card 1 -->
+          <div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+            <div class="text-primary mb-6 transition-transform group-hover:scale-110">
+              <span class="material-symbols-outlined text-3xl">lightbulb</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">Hint Mode</h3>
+            <p class="text-on-surface-variant leading-relaxed">Graduated hints that nudge you toward the solution
+              without revealing the code.</p>
+          </div>
+          <!-- Feature Card 2 -->
+          <div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+            <div class="text-primary mb-6 transition-transform group-hover:scale-110">
+              <span class="material-symbols-outlined text-3xl">code_blocks</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">Code Analysis</h3>
+            <p class="text-on-surface-variant leading-relaxed">Line-by-line feedback on your logic, edge cases, and
+              time/space complexity.</p>
+          </div>
+          <!-- Feature Card 3 -->
+          <div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+            <div class="text-primary mb-6 transition-transform group-hover:scale-110">
+              <span class="material-symbols-outlined text-3xl">schema</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">DSA Guidance</h3>
+            <p class="text-on-surface-variant leading-relaxed">Pattern recognition and deep-dives into algorithms
+              relevant to your problem.</p>
+          </div>
+          <!-- Feature Card 4 -->
+          <div class="glass-card p-8 rounded-xl hover:translate-y-[-4px] transition-all group">
+            <div class="text-primary mb-6 transition-transform group-hover:scale-110">
+              <span class="material-symbols-outlined text-3xl">chat</span>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3">Smart Chat</h3>
+            <p class="text-on-surface-variant leading-relaxed">A conversation aware of the problem context, powered by
+              Claude 3.5 Sonnet.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Demo -->
+    <section class="py-24 bg-surface-container-low">
+      <div class="max-w-5xl mx-auto px-8">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl font-bold text-white mb-4">See it in action</h2>
+        </div>
+        <div
+          class="relative aspect-video bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/20 shadow-2xl">
+          <div class="absolute inset-0 flex items-center justify-center">
+            <div
+              class="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center cursor-pointer group hover:bg-primary/20 transition-all">
+              <span class="material-symbols-outlined text-primary text-5xl group-hover:scale-110 transition-transform"
+                style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+            </div>
+          </div>
+          <div
+            class="absolute bottom-6 left-6 right-6 flex justify-between items-center px-4 py-2 rounded-lg bg-surface-container/60 backdrop-blur-md">
+            <span class="text-sm font-medium text-white">How to use LeetCoach Sidebar</span>
+            <span class="text-xs text-on-surface-variant">0:45</span>
+          </div>
+          <!-- Placeholder for video/GIF -->
+          <div
+            class="w-full h-full bg-gradient-to-br from-surface-container-highest to-surface-container-lowest opacity-40">
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- Pricing -->
+    <section class="py-24" id="pricing">
+      <div class="max-w-4xl mx-auto px-8 text-center">
+        <div
+          class="inline-flex items-center gap-2 bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-full text-sm font-semibold mb-8">
+          <span class="material-symbols-outlined text-lg">celebration</span>
+          Beta Launch Pricing
+        </div>
+        <h2 class="text-4xl font-extrabold text-white mb-8">Simple, Honest Pricing</h2>
+        <div class="bg-surface-container p-12 rounded-3xl border border-outline-variant/20 relative overflow-hidden">
+          <div class="absolute top-0 right-0 p-8">
+            <span class="text-7xl font-black text-white/5 uppercase select-none">Free</span>
+          </div>
+          <div class="relative z-10">
+            <h3 class="text-2xl font-bold text-white mb-2">Always Free</h3>
+            <p class="text-5xl font-black text-primary mb-8">$0<span
+                class="text-lg font-normal text-on-surface-variant">/mo</span></p>
+            <div class="space-y-4 max-w-xs mx-auto mb-10 text-left">
+              <div class="flex items-center gap-3 text-on-surface">
+                <span class="material-symbols-outlined text-primary">check_circle</span>
+                <span>100 AI requests per week</span>
+              </div>
+              <div class="flex items-center gap-3 text-on-surface">
+                <span class="material-symbols-outlined text-primary">check_circle</span>
+                <span>Powered by Claude (Anthropic)</span>
+              </div>
+              <div class="flex items-center gap-3 text-on-surface">
+                <span class="material-symbols-outlined text-primary">check_circle</span>
+                <span>All programming languages</span>
+              </div>
+              <div class="flex items-center gap-3 text-on-surface">
+                <span class="material-symbols-outlined text-primary">check_circle</span>
+                <span>Community Discord access</span>
+              </div>
+            </div>
+            <button
+              class="w-full bg-gradient-to-r from-primary to-secondary text-on-primary font-bold py-4 rounded-xl shadow-[0_10px_30px_-10px_rgba(255,161,22,0.5)] hover:scale-[1.02] active:scale-[0.98] transition-all">
+              Get Started Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- FAQ -->
+    <section class="py-24 bg-surface-container-low" id="faq">
+      <div class="max-w-3xl mx-auto px-8">
+        <h2 class="text-3xl font-bold text-white mb-12 text-center">Frequently Asked Questions</h2>
+        <div class="space-y-4">
+          <div class="glass-card p-6 rounded-xl">
+            <h4 class="text-white font-bold mb-2">Does it just give me the answer?</h4>
+            <p class="text-on-surface-variant">No, hints are graduated across 3 levels.</p>
+          </div>
+          <div class="glass-card p-6 rounded-xl">
+            <h4 class="text-white font-bold mb-2">Is my code private?</h4>
+            <p class="text-on-surface-variant">It's sent to a private backend, never stored. See <a
+                href="./privacy.html" class="text-primary hover:underline">privacy policy</a>.</p>
+          </div>
+          <div class="glass-card p-6 rounded-xl">
+            <h4 class="text-white font-bold mb-2">What pages does it work on?</h4>
+            <p class="text-on-surface-variant">LeetCode problem pages only.</p>
+          </div>
+          <div class="glass-card p-6 rounded-xl">
+            <h4 class="text-white font-bold mb-2">What languages are supported?</h4>
+            <p class="text-on-surface-variant">All languages available on LeetCode.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- CTA Section -->
+    <section class="py-24">
+      <div class="max-w-7xl mx-auto px-8">
+        <div
+          class="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-[2rem] p-16 text-center border border-primary/20">
+          <h2 class="text-5xl font-black text-white mb-6 tracking-tight">Ready to break the plateau?</h2>
+          <p class="text-on-surface-variant text-xl mb-10 max-w-2xl mx-auto leading-relaxed">Join thousands of engineers
+            who are training smarter, not harder. Install LeetCoach today.</p>
+          <button
+            class="bg-white text-black font-black px-12 py-5 rounded-full text-lg hover:bg-primary transition-all shadow-xl">
+            Add to Chrome for Free
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <!-- Footer -->
+  <footer class="bg-[#0E0E0E] w-full border-t border-[#494454]/20">
+    <div class="flex flex-col md:flex-row justify-between items-center px-12 py-16 w-full max-w-7xl mx-auto">
+      <div class="flex flex-col gap-4 mb-8 md:mb-0">
+        <div class="flex items-center gap-3">
+          <img alt="LeetCoach Logo" class="w-6 h-6 object-contain rounded-sm"
+            src="https://lh3.googleusercontent.com/aida/ADBb0ugaSxqGYpzbYCxk4lTxwBOvFjQY-h0-IbKCEpNTIXSUgofaMja_xYrKqpvCx5m2UtCaIzc2-43LDE5y6n1UvejMyDGcQLB6MqDVlfWtTag7s_GdAVuU-qfNQXTwIIm66glua-WmKhFznYtR9ch32E9KFRQAzid79GTYjxQWfAQft68EHLXSWWlTsWByr65A1txtyVW4D9Z7wVCjxF-SRnWfgoifDZ8ONBHOhCZIFc8F-NQh5Fbmi6rqYUsn8_mRMg9__2bYfGylvts" />
+          <span class="text-lg font-black text-white">LeetCoach</span>
+        </div>
+        <p class="Inter body-md tracking-normal text-[#CBC3D7]">© 2024 LeetCoach. Built for the Flow State.</p>
+      </div>
+      <div class="flex gap-8">
+        <a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="#">Chrome Web Store</a>
+        <a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="#">GitHub</a>
+        <a class="text-[#CBC3D7] hover:text-primary transition-colors Inter body-md" href="./privacy.html">Privacy
+          Policy</a>
+      </div>
+    </div>
+  </footer>
+</body>
+
+</html>
