@@ -8,7 +8,7 @@ const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.o
 // Must match the API_KEY environment variable set on the Lambda (template.yaml).
 const API_KEY = 'fd6c9ff374bc5801ac6e2c1bf80cec7c326dec771f325a4e7d96532b607e7b5d';
 const WEEKLY_LIMIT = 100;
-const CLEAR_PHRASES = new Set(['start over', 'clear chat', 'clear', 'reset']);
+const CLEAR_PHRASES = new Set(['/clear', '/reset']);
 
 const LANG_MAP = {
   // Python
@@ -570,6 +570,7 @@ function clearChat() {
   state.domSnapshot = null;
   state.hintLevel = 1;
   chatEl.replaceChildren();
+  addEmptyState('Ask a question or use the buttons below.');
   syncHintBadge();
   inputEl.focus();
 }
@@ -611,11 +612,15 @@ function syncHintBadge() {
   hintLevelBadgeEl.textContent = getTabState(activeTabId).hintLevel;
 }
 
-let emptyStateRemoved = false;
 function removeEmptyState() {
-  if (emptyStateRemoved) return;
-  const el = document.getElementById('empty-state');
-  if (el) { el.remove(); emptyStateRemoved = true; }
+  document.getElementById('empty-state')?.remove();
+}
+
+function addEmptyState(text) {
+  const el = document.createElement('div');
+  el.id = 'empty-state';
+  el.textContent = text;
+  chatEl.appendChild(el);
 }
 
 // ---------------------------------------------------------------------------

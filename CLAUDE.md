@@ -38,7 +38,7 @@ interface for code feedback, hints, and DSA guidance.
 - `background.js` — side panel enable/disable logic, keyboard shortcut handler
 - `content.js` — reads LeetCode DOM (title, number, difficulty, tags, description, language); does NOT read Monaco code
 - `sidepanel.html` — side panel UI markup + all CSS (dark theme, mode buttons, spinner, markdown styles)
-- `sidepanel.js` — chat logic, per-tab state, Monaco code reading (MAIN world), submission result reading, Lambda fetch, markdown rendering, usage tracking (local via `chrome.storage.local` + server sync via `usage` mode on init)
+- `sidepanel.js` — chat logic, per-tab state, Monaco code reading (MAIN world), submission result reading, Lambda fetch, markdown rendering, usage tracking (local via `chrome.storage.local` + server sync via `usage` mode on init); typing `clear`, `reset`, `clear chat`, or `start over` clears the chat; usage tooltip shows prompts remaining + time until Monday reset
 - `prism.js` — bundled Prism.js for syntax highlighting in code fences
 - `prism-theme.css` — dark Prism theme matching the sidebar palette
 
@@ -52,11 +52,13 @@ interface for code feedback, hints, and DSA guidance.
   - `history`: last 10 turns (chat only — analyze/hint/dsa send no history)
   - `userId`: LeetCode username (may be null — always fail open if missing)
 - Returns: streamed plain text via chunked transfer encoding to Lambda Runtime API
-- Model routing: hint + dsa → `claude-haiku-4-5-20251001`; analyze + chat → `claude-sonnet-4-6`
+- Model routing: hint + dsa → `us.anthropic.claude-haiku-4-5-20251001-v1:0`; analyze + chat → `us.anthropic.claude-sonnet-4-6` (the `us.` prefix enables cross-region inference routing)
+- Model IDs overridable via `HAIKU_MODEL_ID` / `SONNET_MODEL_ID` Lambda env vars — update these when Anthropic deprecates a version, no code change needed
 - Token budgets: hint 64, dsa 128, analyze 256, chat 256
 - `usage` mode: reads DynamoDB, streams `{weeklyRequests, weekStartDate}` as JSON — does NOT count against limit
-- `check_and_update_usage(user_id)`: called before every Bedrock call; returns False if weeklyRequests >= WEEKLY_LIMIT; always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday
+- `check_and_update_usage(user_id)`: called before every Bedrock call; returns False if weeklyRequests >= WEEKLY_LIMIT; always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday; uses `ConditionExpression` to make the limit check + increment atomic (eliminates TOCTOU race on concurrent requests)
 - `WEEKLY_LIMIT = 100` (named constant, easy to change)
+- `validate_and_sanitize_body()`: called on every request before processing; truncates oversized fields (code: 10KB, description: 5KB, message: 2KB), limits history to last 10 turns, clamps hintLevel to 1–3, validates userId against `^[a-zA-Z0-9_\-\.]{1,50}$` (sets to null if invalid)
 
 ## DynamoDB
 - Table: `leetcoach-users`, partition key: `userId` (String), PAY_PER_REQUEST
