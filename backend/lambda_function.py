@@ -243,7 +243,7 @@ def build_analyze_prompt(body):
 
     return preamble + f"""
 Your task: Analyze the code. 3 bullets max, one line each. Skip any section that has no issue:
-- **Correctness:** is the logic right? If there's a submission failure, diagnose why.
+- **Correctness:** is the logic right? If there's a submission failure, diagnose why. Point out any bugs with specific line numbers if possible.
 - **Complexity:** Big-O time and space. Is it optimal?
 - **Edge cases:** any obvious gaps.
 

@@ -16,7 +16,7 @@ interface for code feedback, hints, and DSA guidance.
 - `extension/` — Chrome extension files
 - `backend/` — Lambda function and dependencies
 - `template.yaml` — SAM infrastructure definition
-- `docs/` — GitHub Pages hosted privacy policy
+- `docs/` — GitHub Pages site (landing page, privacy policy, demo video)
 
 ## Key Decisions
 - Single Lambda function, mode determined by request body (`mode` field)
@@ -93,12 +93,21 @@ Not implemented (listed in original spec but not built):
 - Billing kill switch: AWS Budgets Action attaches a Deny IAM policy at $10/month spend, shutting down all Bedrock calls. Re-enable by detaching `leetcoach-bedrock-killswitch` policy from `ChatFunctionExecutionRole` in IAM console.
 - deploying user (`leetcoach-dev`) needs `budgets:*` permission in addition to IAM and DynamoDB
 
+## Landing Page (docs/)
+- Hosted on GitHub Pages at `https://varunanand2006.github.io/LeetCoach/`
+- `docs/index.html` — marketing landing page (Tailwind CSS via CDN, Inter font, dark theme with orange/amber primary)
+- `docs/privacy.html` — privacy policy
+- `docs/demo.mp4` — screen recording of the sidebar in action
+- Built with Google Stitch + Antigravity (Gemini); no build tools, single HTML file
+- To update: edit `docs/index.html`, commit and push to master — GitHub Pages auto-deploys from `/docs` on master branch
+- After pushing, hard refresh with `Ctrl+Shift+R` to bust browser cache
+
 ## Development Commands
 - Deploy backend: `sam build --use-container && sam deploy`
 - Load extension: chrome://extensions → Developer Mode → Load Unpacked → `extension/`
 - After Lambda changes: `sam build --use-container && sam deploy`
 - After extension changes: refresh extension in chrome://extensions, reload LeetCode tab
-- New extension version: bump `version` in `manifest.json`, zip `extension/`, upload to Chrome Web Store
+- New extension version: bump `version` in `manifest.json`, zip `extension/` contents (not the folder itself) using `Compress-Archive -Path extension\* -DestinationPath leetcoach-x.x.x.zip` in PowerShell, upload to Chrome Web Store
 
 ## Current Status
 - [x] Project structure created
@@ -120,3 +129,6 @@ Not implemented (listed in original spec but not built):
 - [x] API key parameterized (out of source control)
 - [x] Privacy policy (docs/privacy.html, GitHub Pages)
 - [x] Submitted to Chrome Web Store
+- [x] Extension update published (v1.1.0)
+- [x] Landing page (docs/index.html, GitHub Pages)
+- [x] Demo video (docs/demo.mp4)
