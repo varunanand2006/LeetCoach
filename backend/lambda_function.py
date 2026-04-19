@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
-WEEKLY_LIMIT = 100
+WEEKLY_LIMIT = 200
 TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
 _table = dynamodb.Table(TABLE_NAME)  # cached; Lambda reuses this across warm invocations
 
@@ -21,6 +21,7 @@ SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-
 # environment (template.yaml) and mirror the same value in sidepanel.js.
 # Leave empty to disable the check (not recommended for production).
 API_KEY = os.environ.get('API_KEY', '')
+
 
 # Input validation limits
 VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'usage'}

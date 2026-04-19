@@ -88,6 +88,7 @@ Resources:
         Variables:
           TABLE_NAME: !Ref UsersTable
           API_KEY: !Ref ApiKey
+
           HAIKU_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
           SONNET_MODEL_ID: "us.anthropic.claude-sonnet-4-6"
       FunctionUrlConfig:
@@ -99,6 +100,7 @@ Resources:
           AllowHeaders:
             - 'Content-Type'
             - 'x-api-key'
+
           AllowMethods:
             - 'POST'
 

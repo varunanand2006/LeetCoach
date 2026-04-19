@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/';
+
 // Must match the API_KEY environment variable set on the Lambda (template.yaml).
 const API_KEY = 'fd6c9ff374bc5801ac6e2c1bf80cec7c326dec771f325a4e7d96532b607e7b5d';
 const WEEKLY_LIMIT = 100;
