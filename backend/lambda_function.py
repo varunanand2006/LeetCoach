@@ -141,6 +141,9 @@ def validate_and_sanitize_body(body):
     if user_id is not None and (not isinstance(user_id, str) or not _USERID_RE.match(user_id)):
         body['userId'] = None
 
+    cm = body.get('coachingMode', 'learn')
+    body['coachingMode'] = cm if cm in ('learn', 'practice') else 'learn'
+
 
 # ---------------------------------------------------------------------------
 # Per-mode system prompts
@@ -208,6 +211,18 @@ def build_hint_prompt(body):
     hint_level = body.get('hintLevel', 1)
     preamble, language = _build_preamble(body)
 
+    coaching_mode = body.get('coachingMode', 'learn')
+    if coaching_mode == 'learn':
+        coaching_rule = (
+            f"Coaching mode: LEARN. The user is new to DSA. Freely name the data structure or algorithm "
+            f"at any hint level, show a {language} syntax example if it helps, and explain why it fits. Be encouraging and educational."
+        )
+    else:
+        coaching_rule = (
+            "Coaching mode: PRACTICE. The user knows DSA. Give only the minimal directional nudge. "
+            "No data structure names, no syntax, no explanations. Just point toward the right door."
+        )
+
     level_instructions = {
         1: (
             "One sentence only. Give a directional nudge without naming any data structure "
@@ -227,6 +242,7 @@ def build_hint_prompt(body):
 
     return preamble + f"""
 Hint level requested: {hint_level} of 3
+{coaching_rule}
 
 Your task: {instruction}
 
@@ -242,7 +258,20 @@ Rules:
 def build_analyze_prompt(body):
     preamble, language = _build_preamble(body)
 
+    coaching_mode = body.get('coachingMode', 'learn')
+    if coaching_mode == 'learn':
+        coaching_rule = (
+            "Coaching mode: LEARN. For each issue explain why it matters conceptually and what direction "
+            "to think about for a fix (no full solution, no code)."
+        )
+    else:
+        coaching_rule = (
+            "Coaching mode: PRACTICE. List issues only — no explanations, no fix hints. Be blunt and precise."
+        )
+
     return preamble + f"""
+{coaching_rule}
+
 Your task: Analyze the code. 3 bullets max, one line each. Skip any section that has no issue:
 - **Correctness:** is the logic right? If there's a submission failure, diagnose why. Point out any bugs with specific line numbers if possible.
 - **Complexity:** Big-O time and space. Is it optimal?
@@ -255,7 +284,20 @@ No rewrites, no full solutions. Be concise — stop as soon as the point is made
 def build_dsa_prompt(body):
     preamble, language = _build_preamble(body)
 
+    coaching_mode = body.get('coachingMode', 'learn')
+    if coaching_mode == 'learn':
+        coaching_rule = (
+            f"Coaching mode: LEARN. Explain why this pattern fits the problem and include a one-line "
+            f"syntax example in {language} for the key data structure operation."
+        )
+    else:
+        coaching_rule = (
+            "Coaching mode: PRACTICE. Name the pattern and structure only. Zero explanation. Zero syntax."
+        )
+
     return preamble + f"""
+{coaching_rule}
+
 Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**). Use {language} naming conventions for data structures. If the last submission shows a TLE or MLE, factor the complexity requirement into your recommendation.
 """
 
@@ -263,7 +305,21 @@ Your task: 1-3 lines total. State the algorithmic pattern, the specific data str
 def build_chat_prompt(body):
     preamble, language = _build_preamble(body)
 
+    coaching_mode = body.get('coachingMode', 'learn')
+    if coaching_mode == 'learn':
+        coaching_rule = (
+            f"Coaching mode: LEARN. Teach freely. Explain the concept, name the algorithm, show {language} syntax "
+            "when helpful, and build the user's understanding. Be thorough enough to actually teach, not just hint."
+        )
+    else:
+        coaching_rule = (
+            "Coaching mode: PRACTICE. The user knows DSA. Give the minimal nudge only — no concept explanations, "
+            "no syntax. If they ask something they should already know, ask a probing question back. Max 1-2 sentences."
+        )
+
     return preamble + f"""
+{coaching_rule}
+
 Rules:
 - Be terse. 1-2 sentences max unless the question genuinely requires more. Stop as soon as the point is made.
 - Recommend specific DS/algorithm variants for this problem, not generic advice.

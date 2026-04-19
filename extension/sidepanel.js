@@ -127,6 +127,9 @@ async function incrementUsage() {
 const tabHistories = new Map();
 let activeTabId = null;
 
+// Coaching mode: 'learn' (teaches concepts + syntax) | 'practice' (minimal nudge)
+let coachingMode = 'learn';
+
 function getTabState(tabId) {
   if (!tabId) return { history: [], slug: null, domSnapshot: null, hintLevel: 1, baseContext: null };
   if (!tabHistories.has(tabId)) {
@@ -141,6 +144,7 @@ function getTabState(tabId) {
 
 let chatEl, inputEl, problemNameEl, usageIndicatorEl;
 let modeBtnHint, modeBtnAnalyze, modeBtnDsa, hintLevelBadgeEl;
+let coachingToggleEl;
 
 document.addEventListener('DOMContentLoaded', () => {
   chatEl           = document.getElementById('chat');
@@ -151,14 +155,27 @@ document.addEventListener('DOMContentLoaded', () => {
   modeBtnAnalyze   = document.getElementById('btn-analyze');
   modeBtnDsa       = document.getElementById('btn-dsa');
   hintLevelBadgeEl = document.getElementById('hint-level-badge');
+  coachingToggleEl = document.getElementById('coaching-toggle');
 
   initPanel();
   loadUsageCount();
   setupNavigationDetection();
+  syncCoachingToggle();
 
   modeBtnHint.addEventListener('click', () => handleModeRequest('hint'));
   modeBtnAnalyze.addEventListener('click', () => handleModeRequest('analyze'));
   modeBtnDsa.addEventListener('click', () => handleModeRequest('dsa'));
+
+  coachingToggleEl.addEventListener('click', async () => {
+    coachingMode = coachingMode === 'learn' ? 'practice' : 'learn';
+    await chrome.storage.local.set({ coachingMode });
+    syncCoachingToggle();
+  });
+
+  chrome.storage.local.get('coachingMode').then(data => {
+    coachingMode = data.coachingMode ?? 'learn';
+    syncCoachingToggle();
+  });
 
   inputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -486,6 +503,7 @@ async function sendMessage(userText) {
     history: getTabState(activeTabId).history.slice(-10),
     submissionResult: context?.submissionResult ?? null,
     userId: context?.userId ?? null,
+    coachingMode,
   };
 
   await streamResponse(body, assistantBubble, (assistantText) => {
@@ -613,6 +631,16 @@ function syncHintBadge() {
   hintLevelBadgeEl.textContent = getTabState(activeTabId).hintLevel;
 }
 
+function syncCoachingToggle() {
+  if (!coachingToggleEl) return;
+  const isPractice = coachingMode === 'practice';
+  coachingToggleEl.classList.toggle('active', isPractice);
+  document.getElementById('coaching-label').textContent = isPractice ? 'Practice' : 'Learn';
+  coachingToggleEl.title = isPractice
+    ? 'Practice mode: minimal nudges — click to switch to Learn'
+    : 'Learn mode: full explanations & syntax — click to switch to Practice';
+}
+
 function removeEmptyState() {
   document.getElementById('empty-state')?.remove();
 }
@@ -640,6 +668,7 @@ function buildModeBody(mode, context, hintLevel) {
     language: context?.language ?? null,
     submissionResult: context?.submissionResult ?? null,
     userId: context?.userId ?? null,
+    coachingMode,
   };
   if (mode === 'hint') body.hintLevel = hintLevel;
   return body;
