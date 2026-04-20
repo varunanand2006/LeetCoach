@@ -228,29 +228,33 @@
     }
 
     /* -------------------------------------------------------------------------
-       Usage indicator (hourglass + tooltip)
+       Header Icons (Usage & Coaching)
     ------------------------------------------------------------------------- */
 
-    #usage-indicator {
+    #usage-indicator, .coaching-toggle {
       position: relative;
       flex-shrink: 0;
       color: #666;
       font-size: 14px;
-      cursor: default;
       display: flex;
       align-items: center;
       padding: 4px;
       transition: opacity 0.15s, filter 0.15s;
       opacity: 0.35;
       filter: grayscale(100%);
+      background: transparent;
+      border: none;
     }
 
-    #usage-indicator:hover {
+    #usage-indicator { cursor: default; }
+    .coaching-toggle { cursor: pointer; }
+
+    #usage-indicator:hover, .coaching-toggle:hover {
       opacity: 1;
       filter: grayscale(0%);
     }
 
-    #usage-indicator::after {
+    #usage-indicator::after, .coaching-toggle::after {
       content: attr(data-tooltip);
       position: absolute;
       right: 0;
@@ -271,7 +275,7 @@
       z-index: 10;
     }
 
-    #usage-indicator:hover::after {
+    #usage-indicator:hover::after, .coaching-toggle:hover::after {
       opacity: 1;
     }
 
@@ -576,36 +580,7 @@
       overflow-x: auto;
     }
 
-    /* -------------------------------------------------------------------------
-       Coaching mode toggle
-    ------------------------------------------------------------------------- */
-
-    /* default = Learn (blue) */
-    .coaching-toggle {
-      flex-shrink: 0;
-      background: #1e3a5f;
-      color: #60b4ff;
-      border: 1px solid #2a5a9f;
-      border-radius: 20px;
-      padding: 3px 10px;
-      font-family: inherit;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      cursor: pointer;
-      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
-      white-space: nowrap;
-      line-height: 1.6;
-    }
-
-    .coaching-toggle:hover { opacity: 0.8; }
-
-    /* .active = Practice (orange) */
-    .coaching-toggle.active {
-      background: #3a1e00;
-      color: #ffa116;
-      border-color: #7a3e00;
-    }
+    /* Coaching mode toggle styles merged with Header Icons */
 
   </style>
 </head>
@@ -615,8 +590,8 @@
     <!-- Header -->
     <div id="header">
       <span id="problem-name">LeetCoach</span>
-      <button id="coaching-toggle" class="coaching-toggle" title="Learn mode: full explanations &amp; syntax — click to switch to Practice">
-        <span id="coaching-label">Learn</span>
+      <button id="coaching-toggle" class="coaching-toggle" data-tooltip="Learn mode&#10;Click to switch to Practice">
+        <span id="coaching-icon">🎓</span>
       </button>
       <div id="usage-indicator" data-tooltip="100 prompts left">
         ✨

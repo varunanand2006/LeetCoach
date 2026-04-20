@@ -634,11 +634,11 @@ function syncHintBadge() {
 function syncCoachingToggle() {
   if (!coachingToggleEl) return;
   const isPractice = coachingMode === 'practice';
-  coachingToggleEl.classList.toggle('active', isPractice);
-  document.getElementById('coaching-label').textContent = isPractice ? 'Practice' : 'Learn';
-  coachingToggleEl.title = isPractice
-    ? 'Practice mode: minimal nudges — click to switch to Learn'
-    : 'Learn mode: full explanations & syntax — click to switch to Practice';
+  document.getElementById('coaching-icon').textContent = isPractice ? '📝' : '🎓';
+  coachingToggleEl.setAttribute('data-tooltip', isPractice
+    ? 'Practice mode\nClick to switch to Learn'
+    : 'Learn mode\nClick to switch to Practice'
+  );
 }
 
 function removeEmptyState() {
