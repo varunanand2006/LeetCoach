@@ -4,9 +4,9 @@ import { API_URL, getThisMonday, setWeeklyRequestsUsed, weeklyRequestsUsed } fro
 import { updateUsageIndicator, showLimitWarning, scrollToBottom } from './ui.js';
 import { renderMarkdown } from './markdown.js';
 
-function getAuthToken() {
+function getAuthToken(interactive = false) {
   return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive: true }, (token) => {
+    chrome.identity.getAuthToken({ interactive }, (token) => {
       if (chrome.runtime.lastError) {
         reject(chrome.runtime.lastError);
       } else {
@@ -18,7 +18,8 @@ function getAuthToken() {
 
 export async function fetchUsageFromServer(userId) {
   try {
-    const token = await getAuthToken();
+    // Fail silently if they aren't logged in yet (don't pop up a window on load)
+    const token = await getAuthToken(false);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10_000);
     const response = await fetch(API_URL, {
@@ -50,7 +51,8 @@ export async function incrementUsage() {
 export async function streamResponse(body, assistantBubble, onSuccess) {
   let assistantText = '';
   try {
-    const token = await getAuthToken();
+    // Prompt the user to log in if they haven't already when they explicitly ask for help
+    const token = await getAuthToken(true);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 60_000);
     const response = await fetch(API_URL, {

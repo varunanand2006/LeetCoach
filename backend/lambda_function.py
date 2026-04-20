@@ -424,22 +424,32 @@ def handler(event, context):
     try:
         headers = event.get('headers') or {}
         auth_header = headers.get('authorization', headers.get('Authorization', ''))
-        if not auth_header.startswith('Bearer '):
+        if not auth_header.lower().startswith('bearer '):
             _stream_to_runtime(context.aws_request_id, iter([json.dumps({
                 'error': 'unauthorized',
                 'message': 'Missing or invalid Authorization header. Please sign in with Google.',
             })]))
             return
 
-        token = auth_header.split(' ')[1]
+        token = auth_header[7:].strip()
+        if not token:
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'error': 'unauthorized',
+                'message': 'Token missing from Authorization header.',
+            })]))
+            return
+
         try:
             import urllib.request
             url = f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req) as auth_response:
                 token_data = json.loads(auth_response.read().decode())
-                if GOOGLE_CLIENT_ID and token_data.get('aud') != GOOGLE_CLIENT_ID:
+                
+                expected_client_id = GOOGLE_CLIENT_ID.strip()
+                if not expected_client_id or token_data.get('aud') != expected_client_id:
                     raise ValueError("Invalid client ID")
+                
                 secure_user_id = token_data.get('sub')
                 if not secure_user_id:
                     raise ValueError("No user ID found")
