@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnydnQLe+nCEk1m1zncwmDwtHtCcBINkUjOGe+ftZpbo+WcHSi9t4r1rwxCCVBdY5aVRwnq/gdnbsnDYMTPLhZESxRxAN84Eyo9bU/0GDndvAbGUOpxZ+E+NMvNgOQcekkX5L14ccjqMoelpSisZAxMjl+Z4zT+8JCQeEykEs33fEscHkXlwL2YKoxRc+Y9XfjFUXhjBB47d5d78DHHDSZ8ej593mzVvLbQi5xz2fq2Jg7o+pV/UsrnX97N2tX7gEBdGvPxEdvTjxeAAmtHpvfP3YmAx2KTUru8MBeMNt0JpuY19nJvAYAC6kVlqy34iE5iZtPISsQVCzczKVu965xwIDAQAB",
   "name": "LeetCoach",
   "version": "1.1.0",
   "description": "AI coaching sidebar for LeetCode - hints, feedback, and DSA guidance powered by Claude.",
@@ -17,8 +18,13 @@
     "activeTab",
     "scripting",
     "tabs",
-    "storage"
+    "storage",
+    "identity"
   ],
+  "oauth2": {
+    "client_id": "430285772917-uo9jlh47d6bfk2bb1t7hr1d5fcckmlgs.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
+  },
   "host_permissions": [
     "https://leetcode.com/*"
   ],

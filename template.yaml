@@ -5,10 +5,9 @@ Parameters:
   AlertEmail:
     Type: String
     Description: "Email address for billing alerts and kill-switch notifications"
-  ApiKey:
+  GoogleClientId:
     Type: String
-    NoEcho: true
-    Description: "Shared secret validated against x-api-key header sent by the extension"
+    Description: "Google OAuth Client ID for validating Chrome extension users"
 
 Globals:
   Function:
@@ -87,7 +86,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref UsersTable
-          API_KEY: !Ref ApiKey
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
 
           HAIKU_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
           SONNET_MODEL_ID: "us.anthropic.claude-sonnet-4-6"
@@ -99,7 +98,7 @@ Resources:
             - '*'
           AllowHeaders:
             - 'Content-Type'
-            - 'x-api-key'
+            - 'Authorization'
 
           AllowMethods:
             - 'POST'

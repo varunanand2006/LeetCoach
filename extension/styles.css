@@ -1,0 +1,573 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------
+   Layout
+------------------------------------------------------------------------- */
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+#app::-webkit-scrollbar {
+  width: 5px;
+}
+#app::-webkit-scrollbar-track {
+  background: transparent;
+}
+#app::-webkit-scrollbar-thumb {
+  background: rgba(80, 80, 80, 0.5);
+  border-radius: 3px;
+}
+#app::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.8);
+}
+
+/* -------------------------------------------------------------------------
+   Header
+------------------------------------------------------------------------- */
+
+#header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: rgba(17, 17, 17, 0.70);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(46, 46, 46, 0.4);
+  flex-shrink: 0;
+  gap: 10px;
+  min-width: 0;
+}
+
+
+#problem-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Chat area
+------------------------------------------------------------------------- */
+
+#chat {
+  position: relative;
+  flex: 1;
+  overflow-y: visible;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#chat::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px;
+  height: 120px;
+  background-image: url("icons/icon.svg");
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  opacity: 0.06;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+#chat:has(.message)::before {
+  opacity: 0;
+}
+
+/* scrollbar styles moved to #app */
+
+#empty-state {
+  color: #555;
+  font-size: 13px;
+  text-align: center;
+  margin: auto;
+  line-height: 1.6;
+  padding: 20px;
+}
+
+/* -------------------------------------------------------------------------
+   Message bubbles
+------------------------------------------------------------------------- */
+
+@keyframes slideUp {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.message {
+  max-width: 85%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  font-size: 13px;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, #FFB340 0%, #FF8C00 100%);
+  color: #111111;
+  border-bottom-right-radius: 3px;
+  box-shadow: 0 4px 14px rgba(255, 161, 22, 0.4);
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: #282828;
+  color: #e0e0e0;
+  border-bottom-left-radius: 3px;
+  border: 1px solid #3a3a3a;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  white-space: normal;
+}
+
+.message.assistant p { margin-bottom: 8px; }
+.message.assistant p:last-child { margin-bottom: 0; }
+
+.message.assistant h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffa116;
+  margin: 10px 0 4px;
+}
+.message.assistant h4:first-child { margin-top: 0; }
+
+.message.assistant pre {
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+
+
+.message.assistant pre code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  color: #d4d4d4;
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.message.assistant code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  background: #1e1e1e;
+  color: #ce9178;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.message.assistant ul,
+.message.assistant ol {
+  padding-left: 18px;
+  margin: 4px 0 8px;
+}
+
+.message.assistant li { margin-bottom: 3px; line-height: 1.5; }
+
+.message.assistant hr {
+  border: none;
+  border-top: 1px solid #3a3a3a;
+  margin: 8px 0;
+}
+
+.message.warning {
+  align-self: stretch;
+  background: #3a2500;
+  border: 1px solid #f97316;
+  color: #f97316;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  white-space: normal;
+}
+
+/* -------------------------------------------------------------------------
+   Header Icons (Usage & Coaching)
+------------------------------------------------------------------------- */
+
+#usage-indicator, .coaching-toggle {
+  position: relative;
+  flex-shrink: 0;
+  color: #666;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  transition: opacity 0.15s, filter 0.15s;
+  opacity: 0.35;
+  filter: grayscale(100%);
+  background: transparent;
+  border: none;
+}
+
+#usage-indicator { cursor: default; }
+.coaching-toggle { cursor: pointer; }
+
+#usage-indicator:hover, .coaching-toggle:hover {
+  opacity: 1;
+  filter: grayscale(0%);
+}
+
+#usage-indicator::after, .coaching-toggle::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  background: #1e1e1e;
+  border: 1px solid #333;
+  color: #e0e0e0;
+  font-size: 11px;
+  font-weight: 400;
+  padding: 6px 10px;
+  border-radius: 5px;
+  white-space: pre;
+  text-align: right;
+  line-height: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 10;
+}
+
+#usage-indicator:hover::after, .coaching-toggle:hover::after {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------
+   Spinner
+------------------------------------------------------------------------- */
+
+.gg-spinner {
+  transform: scale(var(--ggs, 1));
+}
+.gg-spinner,
+.gg-spinner::after,
+.gg-spinner::before {
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+.gg-spinner::after,
+.gg-spinner::before {
+  content: "";
+  position: absolute;
+  border-radius: 100px;
+}
+.gg-spinner::before {
+  animation: spinner 1s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+  border: 3px solid transparent;
+  border-top-color: currentColor;
+}
+.gg-spinner::after {
+  border: 3px solid;
+  opacity: 0.2;
+}
+@keyframes spinner {
+  0%  { transform: rotate(0deg); }
+  to  { transform: rotate(359deg); }
+}
+
+.message.assistant .gg-spinner::before {
+  border-color: #14213D #14213D #14213D #E5E5E5;
+}
+.message.assistant .gg-spinner::after {
+  opacity: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Mode bar
+------------------------------------------------------------------------- */
+
+#mode-bar {
+  display: flex;
+  gap: 6px;
+}
+
+.mode-btn {
+  flex: 1;
+  background: #222222;
+  color: #e0e0e0;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.mode-btn:hover:not(:disabled) {
+  background: #2e2e2e;
+  border-color: #ffa116;
+  color: #ffa116;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.mode-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
+  background: #333333;
+}
+
+.mode-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#hint-level-badge {
+  display: inline-block;
+  box-sizing: border-box;
+  background: #111111;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  line-height: 13px;
+  text-align: center;
+  margin-left: 3px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.mode-btn:hover:not(:disabled) #hint-level-badge {
+  color: #ffa116;
+  border-color: #ffa116;
+}
+
+/* -------------------------------------------------------------------------
+   Input row
+------------------------------------------------------------------------- */
+
+#input-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  background: rgba(17, 17, 17, 0.70);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(46, 46, 46, 0.4);
+  flex-shrink: 0;
+}
+
+
+#input {
+  background: #222222;
+  color: #e0e0e0;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: none;
+  outline: none;
+  line-height: 1.45;
+  max-height: 120px;
+  overflow-y: auto;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#input::placeholder {
+  color: #555;
+}
+
+#input:focus {
+  border-color: #ffa116;
+  box-shadow: 0 0 0 2px rgba(255, 161, 22, 0.15);
+}
+
+#input::-webkit-scrollbar {
+  width: 4px;
+}
+
+#input::-webkit-scrollbar-track {
+  background: #222;
+}
+
+#input::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 2px;
+}
+
+#input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* -------------------------------------------------------------------------
+   Mode button icons
+------------------------------------------------------------------------- */
+
+.gg-key {
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  transform: scale(var(--ggs, 1));
+  width: 6px;
+  height: 8px;
+  border: 2px solid;
+  border-radius: 100px;
+  margin-left: 0; /* override standalone -12px default */
+  margin-right: 12px; /* make room for shaft which extends 12px right via absolute positioning */
+  flex-shrink: 0;
+}
+.gg-key::after,
+.gg-key::before {
+  content: "";
+  display: block;
+  box-sizing: border-box;
+  position: absolute;
+  right: -12px;
+}
+.gg-key::before {
+  background: currentColor;
+  width: 12px;
+  height: 2px;
+  top: 1px;
+}
+.gg-key::after {
+  width: 5px;
+  height: 3px;
+  top: 2px;
+  border-left: 2px solid;
+  border-right: 2px solid;
+}
+
+.gg-play-list-search {
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  transform: scale(var(--ggs, 1));
+  width: 12px;
+  height: 6px;
+  border-top: 0;
+  border-bottom: 2px solid transparent;
+  box-shadow: inset 0 -2px 0, -2px 4px 0 -2px, 0 -2px 0 0;
+  flex-shrink: 0;
+}
+.gg-play-list-search::after,
+.gg-play-list-search::before {
+  content: "";
+  display: block;
+  box-sizing: border-box;
+  position: absolute;
+  bottom: -7px;
+}
+.gg-play-list-search::after {
+  width: 3px;
+  height: 2px;
+  background: currentColor;
+  transform: rotate(45deg);
+  right: -4px;
+}
+.gg-play-list-search::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 4px;
+  border: 2px solid;
+  right: -3px;
+}
+
+.gg-list-tree {
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 22px;
+  --ggs: 0.55;
+  transform: scale(var(--ggs, 1));
+  transform-origin: center;
+  margin: -5px; /* collapse extra layout space from scale-down */
+  background:
+    linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat left top/8px 8px,
+    linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat center 3px/8px 2px,
+    linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat 10px 17px/6px 2px,
+    linear-gradient(to left, currentcolor 8px, transparent 0) no-repeat 10px 3px/2px 16px;
+  flex-shrink: 0;
+}
+.gg-list-tree::after,
+.gg-list-tree::before {
+  content: "";
+  display: block;
+  box-sizing: border-box;
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 2px solid;
+  right: 0;
+}
+.gg-list-tree::after {
+  bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Prism theme overrides — match sidebar dark theme
+------------------------------------------------------------------------- */
+
+pre[class*="language-"],
+code[class*="language-"] {
+  background: #1a1a1a !important;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+pre[class*="language-"] {
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  overflow-x: auto;
+}

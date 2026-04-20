@@ -17,10 +17,8 @@ _table = dynamodb.Table(TABLE_NAME)  # cached; Lambda reuses this across warm in
 HAIKU_MODEL_ID = os.environ.get('HAIKU_MODEL_ID', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
 SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
 
-# Shared secret sent by the extension as x-api-key. Set API_KEY in the Lambda
-# environment (template.yaml) and mirror the same value in sidepanel.js.
-# Leave empty to disable the check (not recommended for production).
-API_KEY = os.environ.get('API_KEY', '')
+# Google OAuth Client ID for token verification. Set in template.yaml.
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
 
 # Input validation limits
@@ -424,15 +422,33 @@ def check_and_update_usage(user_id):
 
 def handler(event, context):
     try:
-        # Lambda Function URL lowercases all header names.
-        if API_KEY:
-            headers = event.get('headers') or {}
-            if headers.get('x-api-key', '') != API_KEY:
-                _stream_to_runtime(context.aws_request_id, iter([json.dumps({
-                    'error': 'unauthorized',
-                    'message': 'Unauthorized.',
-                })]))
-                return
+        headers = event.get('headers') or {}
+        auth_header = headers.get('authorization', headers.get('Authorization', ''))
+        if not auth_header.startswith('Bearer '):
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'error': 'unauthorized',
+                'message': 'Missing or invalid Authorization header. Please sign in with Google.',
+            })]))
+            return
+
+        token = auth_header.split(' ')[1]
+        try:
+            import urllib.request
+            url = f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req) as auth_response:
+                token_data = json.loads(auth_response.read().decode())
+                if GOOGLE_CLIENT_ID and token_data.get('aud') != GOOGLE_CLIENT_ID:
+                    raise ValueError("Invalid client ID")
+                secure_user_id = token_data.get('sub')
+                if not secure_user_id:
+                    raise ValueError("No user ID found")
+        except Exception as e:
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'error': 'unauthorized',
+                'message': 'Invalid Google token.',
+            })]))
+            return
 
         body = json.loads(event.get('body', '{}'))
         mode = body.get('mode', 'chat')
@@ -445,7 +461,8 @@ def handler(event, context):
             return
 
         validate_and_sanitize_body(body)
-        user_id = body.get('userId')
+        user_id = secure_user_id
+        body['userId'] = secure_user_id
 
         if mode == 'usage':
             today = datetime.date.today()
