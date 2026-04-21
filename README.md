@@ -10,13 +10,23 @@ An AI coaching sidebar for LeetCode, powered by Claude. Get hints, code feedback
 
 LeetCoach adds a sidebar directly to LeetCode problem pages. Instead of Googling hints or pasting your code into ChatGPT, you get a coaching assistant that already knows the problem you're on, the code you've written, and (when you've submitted) what went wrong.
 
-**Hint** — progressive hints that reveal only as much as you need. Level 1 nudges you in the right direction. Level 2 names the category. Level 3 names the exact data structure. No spoilers unless you ask.
+**Hint** — progressive hints that reveal only as much as you need. Level 1 nudges you in the right direction. Level 2 names the category. Level 3 names the exact data structure. No spoilers unless you ask. In Interview mode, instead of a hint, the AI will ask you a clarifying question about your approach.
 
-**Analyze Code** — reviews your current code in three dimensions: correctness (and why a failed submission failed), time/space complexity, and edge cases. No rewrites, just signal.
+**Analyze Code** — reviews your current code in three dimensions: correctness (and why a failed submission failed), time/space complexity, and edge cases. In Interview mode, it will challenge your choices and ask you to justify your trade-offs.
 
-**DSA Tips** — identifies the algorithmic pattern and optimal data structure for the problem in 1-3 lines. Useful when you're not sure where to start.
+**DSA Tips** — identifies the algorithmic pattern and optimal data structure for the problem in 1-3 lines. Useful when you're not sure where to start. In Interview mode, it will also ask you to explain why this choice is optimal.
 
-**Chat** — freeform coaching. Ask follow-up questions, talk through your approach, or ask why your logic is wrong. Maintains context across the conversation.
+**Chat** — freeform coaching. Ask follow-up questions, talk through your approach, or ask why your logic is wrong. In Interview mode, the AI acts as a senior technical interviewer, challenging your logic and logic and using Socratic questioning.
+
+---
+
+## Modes
+
+LeetCoach has three coaching modes, toggled via the icon in the header:
+
+- **🎓 Learn** (Default) — Educational and encouraging. Explains concepts, names algorithms, and teaches syntax.
+- **📝 Practice** — Minimal nudges. No names, no syntax, no explanations. Just directional hints.
+- **👔 Interview** — Mock interview. The AI acts as a professional interviewer, asking clarifying questions, challenging trade-offs, and focusing on your communication skills.
 
 ---
 

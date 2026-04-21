@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
-WEEKLY_LIMIT = 200
+WEEKLY_LIMIT = 100
 TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
 _table = dynamodb.Table(TABLE_NAME)  # cached; Lambda reuses this across warm invocations
 
@@ -140,7 +140,7 @@ def validate_and_sanitize_body(body):
         body['userId'] = None
 
     cm = body.get('coachingMode', 'learn')
-    body['coachingMode'] = cm if cm in ('learn', 'practice') else 'learn'
+    body['coachingMode'] = cm if cm in ('learn', 'practice', 'interview') else 'learn'
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +215,12 @@ def build_hint_prompt(body):
             f"Coaching mode: LEARN. The user is new to DSA. Freely name the data structure or algorithm "
             f"at any hint level, show a {language} syntax example if it helps, and explain why it fits. Be encouraging and educational."
         )
+    elif coaching_mode == 'interview':
+        coaching_rule = (
+            "Coaching mode: INTERVIEW. You are a senior technical interviewer. Do NOT give hints easily. "
+            "Instead of a hint, ask the user to explain their current logic or how they plan to handle "
+            "specific edge cases. Be professional, slightly critical, and focused on communication."
+        )
     else:
         coaching_rule = (
             "Coaching mode: PRACTICE. The user knows DSA. Give only the minimal directional nudge. "
@@ -237,6 +243,8 @@ def build_hint_prompt(body):
     }
 
     instruction = level_instructions.get(hint_level, level_instructions[3])
+    if coaching_mode == 'interview':
+        instruction = "Instead of the hint described below, ask a clarifying question about their approach."
 
     return preamble + f"""
 Hint level requested: {hint_level} of 3
@@ -247,8 +255,8 @@ Your task: {instruction}
 Rules:
 - Never write actual code or pseudocode
 - Never reveal the complete algorithm
-- Be encouraging — the user is working through this themselves
-- No preamble or summary — just the hint
+- Be professional — you are an interviewer
+- No preamble or summary — just the response
 - Any data structure or syntax references must use {language} conventions
 """
 
@@ -261,6 +269,12 @@ def build_analyze_prompt(body):
         coaching_rule = (
             "Coaching mode: LEARN. For each issue explain why it matters conceptually and what direction "
             "to think about for a fix (no full solution, no code)."
+        )
+    elif coaching_mode == 'interview':
+        coaching_rule = (
+            "Coaching mode: INTERVIEW. You are an interviewer. Point out flaws as if you are "
+            "asking the candidate to justify their choices. 'How would this handle X?' or 'What is the "
+            "trade-off of this approach?'"
         )
     else:
         coaching_rule = (
@@ -288,6 +302,11 @@ def build_dsa_prompt(body):
             f"Coaching mode: LEARN. Explain why this pattern fits the problem and include a one-line "
             f"syntax example in {language} for the key data structure operation."
         )
+    elif coaching_mode == 'interview':
+        coaching_rule = (
+            "Coaching mode: INTERVIEW. State the pattern and structure briefly, then ask the user "
+            "to explain the space-time trade-off of this specific choice compared to a naive approach."
+        )
     else:
         coaching_rule = (
             "Coaching mode: PRACTICE. Name the pattern and structure only. Zero explanation. Zero syntax."
@@ -308,6 +327,12 @@ def build_chat_prompt(body):
         coaching_rule = (
             f"Coaching mode: LEARN. Teach freely. Explain the concept, name the algorithm, show {language} syntax "
             "when helpful, and build the user's understanding. Be thorough enough to actually teach, not just hint."
+        )
+    elif coaching_mode == 'interview':
+        coaching_rule = (
+            "Coaching mode: INTERVIEW. You are a senior technical interviewer. Evaluate the user's "
+            "statements. If they explain logic, challenge it or ask for complexity. If they ask for help, "
+            "guide them with 'Socratic' questions. Stay in character."
         )
     else:
         coaching_rule = (

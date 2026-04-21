@@ -25,7 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
   modeBtnDsa.addEventListener('click', () => handleModeRequest('dsa'));
 
   coachingToggleEl.addEventListener('click', async () => {
-    const newMode = coachingMode === 'learn' ? 'practice' : 'learn';
+    let newMode = 'learn';
+    if (coachingMode === 'learn') newMode = 'practice';
+    else if (coachingMode === 'practice') newMode = 'interview';
+    else if (coachingMode === 'interview') newMode = 'learn';
+    
     setCoachingMode(newMode);
     await chrome.storage.local.set({ coachingMode: newMode });
     syncCoachingToggle();

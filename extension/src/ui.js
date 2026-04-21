@@ -51,13 +51,19 @@ export function syncHintBadge() {
 
 export function syncCoachingToggle() {
   if (!coachingToggleEl) return;
-  const isPractice = coachingMode === 'practice';
   const iconEl = document.getElementById('coaching-icon');
-  if (iconEl) iconEl.textContent = isPractice ? '📝' : '🎓';
-  coachingToggleEl.setAttribute('data-tooltip', isPractice
-    ? 'Practice mode\nClick to switch to Learn'
-    : 'Learn mode\nClick to switch to Practice'
-  );
+  if (!iconEl) return;
+
+  if (coachingMode === 'learn') {
+    iconEl.textContent = '🎓';
+    coachingToggleEl.setAttribute('data-tooltip', 'Learn mode\nClick to switch to Practice');
+  } else if (coachingMode === 'practice') {
+    iconEl.textContent = '📝';
+    coachingToggleEl.setAttribute('data-tooltip', 'Practice mode\nClick to switch to Interview');
+  } else if (coachingMode === 'interview') {
+    iconEl.textContent = '👔';
+    coachingToggleEl.setAttribute('data-tooltip', 'Interview mode\nClick to switch to Learn');
+  }
 }
 
 export function removeEmptyState() {

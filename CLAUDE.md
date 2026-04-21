@@ -24,6 +24,7 @@ interface for code feedback, hints, and DSA guidance.
 - Read problem context from LeetCode DOM
 - Session-only chat memory (no persistence in v1)
 - Haiku for hint/dsa (cheap, short responses); Sonnet for analyze/chat (code review, freeform)
+- Three coaching modes: Learn (educational), Practice (minimal nudges), Interview (Socratic questioning/mock interview)
 - Monaco code must be read via `chrome.scripting.executeScript` in MAIN world from sidepanel.js — content.js cannot access `window.monaco` (isolated world)
 - LeetCode migrated from Monaco to CodeMirror 6 (CM6); `getMonacoCode` tries Monaco first, then CM6 via the internal EditorView key on `.cm-editor` (`Object.keys(el).find(k => el[k]?.state?.doc)`), then falls back to reading `.cm-line` DOM elements
 - Side panel enabled only on leetcode.com/problems/* tabs; auto-opens on icon click
@@ -75,9 +76,6 @@ interface for code feedback, hints, and DSA guidance.
 - Submission failure details: Wrong Answer (input/expected/actual), Runtime Error, Compile Error, TLE, MLE, OLE (via MAIN world in sidepanel.js)
 
 - LeetCode username (`userId`): parsed from `a[href*="/u/"]` href, not innerText
-
-Not implemented (listed in original spec but not built):
-- Public test cases
 
 ## AWS Services
 - Bedrock (Claude Haiku + Sonnet) — AI responses
