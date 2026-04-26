@@ -87,15 +87,30 @@ Single Lambda function (`backend/lambda_function.py`) with a Function URL. The r
 | `chat` | Claude Sonnet 4.6 | 256 |
 
 Responses are streamed via chunked transfer encoding posted directly to the Lambda Runtime API (`/2018-06-01/runtime/invocation/{id}/response`). Bootstrap's duplicate buffered post is suppressed by monkey-patching `runtime_client.post_invocation_result` (the C extension module).
-
 ### DynamoDB
 
-Table: `leetcoach-users` — partition key `userId` (LeetCode username).
+Tables:
+- `leetcoach-users` — partition key `userId` (LeetCode username). Tracks weekly usage.
+- `leetcoach-problems` — partition key `problemSlug`. Stores problem descriptions, solutions, hints, and topics.
 
-Tracks `weeklyRequests`, `totalRequests`, `weekStartDate`, `firstSeen`, `lastSeen`, `tier`. Weekly counter resets when `weekStartDate` diverges from the current Monday. All DynamoDB errors fail open — a user is never blocked due to a tracking failure.
+---
 
-### Security
+## LeetCode Database
 
+To provide richer coaching (hints, solutions, topics), LeetCoach uses a local DynamoDB table seeded with problem metadata.
+
+**Seeding the database:**
+1. The project includes a pre-configured script: `backend/scripts/upload_problems.py`.
+2. I have already downloaded the `merged_problems.json` dataset from the `neenza/leetcode-problems` repository.
+3. To upload the data to your AWS account, ensure your AWS CLI is configured and run:
+   ```bash
+   python backend/scripts/upload_problems.py
+   ```
+   *Note: This script handles the DynamoDB 400KB item limit by truncating extremely large solutions or descriptions if necessary.*
+
+---
+
+## Tech stack
 - API key is a SAM parameter — never hardcoded in `template.yaml`; `samconfig.toml` is gitignored
 - Billing kill switch: AWS Budgets Action attaches a Deny IAM policy at $10/month, cutting off all Bedrock calls
 

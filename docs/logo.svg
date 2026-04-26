@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#333333"/>
+      <stop offset="100%" stop-color="#111111"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFB340"/>
+      <stop offset="100%" stop-color="#FF8C00"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feComponentTransfer in="blur" result="glow1">
+        <feFuncA type="linear" slope="0.6"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glow1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="128" height="128" rx="22" fill="url(#bg)"/>
+  <!-- Subtle inner glow border -->
+  <rect width="128" height="128" rx="22" fill="none" stroke="#FFA116" stroke-opacity="0.12" stroke-width="2"/>
+
+  <!-- Left angle bracket < -->
+  <polyline
+    points="34,44 18,64 34,84"
+    fill="none"
+    stroke="#ffffff"
+    stroke-opacity="0.75"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Center 'L' -->
+  <polyline
+    points="52,40 52,82 78,82"
+    fill="none"
+    stroke="url(#primaryGrad)"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    filter="url(#glow)"
+  />
+
+  <!-- Right angle bracket > -->
+  <polyline
+    points="94,44 110,64 94,84"
+    fill="none"
+    stroke="#ffffff"
+    stroke-opacity="0.75"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Top-right AI Sparkle -->
+  <path 
+    d="M 104 18 Q 104 30 116 30 Q 104 30 104 42 Q 104 30 92 30 Q 104 30 104 18 Z" 
+    fill="url(#primaryGrad)"
+    filter="url(#glow)"
+  />
+</svg>

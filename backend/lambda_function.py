@@ -11,11 +11,26 @@ dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
 WEEKLY_LIMIT = 100
 TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
+PROBLEMS_TABLE_NAME = os.environ.get('PROBLEMS_TABLE_NAME', 'leetcoach-problems')
+
 _table = dynamodb.Table(TABLE_NAME)  # cached; Lambda reuses this across warm invocations
+_problems_table = dynamodb.Table(PROBLEMS_TABLE_NAME)
 
 # Model IDs — override via Lambda environment variables when Anthropic deprecates a version
 HAIKU_MODEL_ID = os.environ.get('HAIKU_MODEL_ID', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
 SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
+
+
+def get_problem_details(problem_slug):
+    """Retrieve problem metadata from DynamoDB."""
+    if not problem_slug:
+        return None
+    try:
+        response = _problems_table.get_item(Key={'problemSlug': problem_slug})
+        return response.get('Item')
+    except ClientError as e:
+        print(f"Error fetching problem details: {e}")
+        return None
 
 # Google OAuth Client ID for token verification. Set in template.yaml.
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')

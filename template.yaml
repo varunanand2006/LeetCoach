@@ -33,6 +33,18 @@ Resources:
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
+  LeetcodeProblemsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: leetcoach-problems
+      AttributeDefinitions:
+        - AttributeName: problemSlug
+          AttributeType: S
+      KeySchema:
+        - AttributeName: problemSlug
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
   # ---------------------------------------------------------------------------
   # Lambda execution role — declared explicitly so Budget Actions can reference it
   # ---------------------------------------------------------------------------
@@ -71,7 +83,10 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
                   - dynamodb:UpdateItem
-                Resource: !GetAtt UsersTable.Arn
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt UsersTable.Arn
+                  - !GetAtt LeetcodeProblemsTable.Arn
 
   # ---------------------------------------------------------------------------
   # Lambda function
@@ -86,6 +101,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref UsersTable
+          PROBLEMS_TABLE_NAME: !Ref LeetcodeProblemsTable
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
 
           HAIKU_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
