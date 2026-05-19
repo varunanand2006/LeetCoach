@@ -43,6 +43,18 @@ MAX_DESC_BYTES = 5_000
 MAX_MSG_BYTES = 2_000
 MAX_HISTORY_TURNS = 10
 _USERID_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,50}$')
+_SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-]{0,99}$')
+
+GET_SOLUTION_TOOL = {
+    "name": "get_solution",
+    "description": (
+        "Look up the reference solution for the current problem. "
+        "Use this when you are genuinely unsure about the optimal approach, uncertain whether your guidance is correct, "
+        "or need to get unblocked before coaching. "
+        "Do NOT use if you are already confident in the direction — only reach for this when you actually need it."
+    ),
+    "input_schema": {"type": "object", "properties": {}, "required": []},
+}
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +120,71 @@ def _bedrock_text_chunks(stream):
                 yield text
 
 
+def _chat_tool_chunks(messages, system_prompt, max_tokens, model_id, slug):
+    """Streams chat response, executing get_solution tool use internally (max 1 tool call)."""
+    for _ in range(2):  # at most: tool-use turn + final turn
+        response = bedrock.invoke_model_with_response_stream(
+            modelId=model_id,
+            body=json.dumps({
+                'anthropic_version': 'bedrock-2023-05-31',
+                'max_tokens': max_tokens,
+                'system': system_prompt,
+                'messages': messages,
+                'tools': [GET_SOLUTION_TOOL],
+                'tool_choice': {'type': 'auto'},
+            })
+        )
+
+        text_chunks, tool_blocks = [], []
+        current_tool, current_json = None, ''
+
+        for event in response['body']:
+            chunk = event.get('chunk')
+            if not chunk:
+                continue
+            data = json.loads(chunk['bytes'])
+            dtype = data.get('type')
+
+            if dtype == 'content_block_start':
+                cb = data.get('content_block', {})
+                if cb.get('type') == 'tool_use':
+                    current_tool = {'id': cb['id'], 'name': cb['name']}
+                    current_json = ''
+            elif dtype == 'content_block_delta':
+                delta = data.get('delta', {})
+                if delta.get('type') == 'text_delta':
+                    text = delta.get('text', '')
+                    if text:
+                        yield text
+                        text_chunks.append(text)
+                elif delta.get('type') == 'input_json_delta':
+                    current_json += delta.get('partial_json', '')
+            elif dtype == 'content_block_stop' and current_tool:
+                try:
+                    current_tool['input'] = json.loads(current_json) if current_json else {}
+                except json.JSONDecodeError:
+                    current_tool['input'] = {}
+                tool_blocks.append(current_tool)
+                current_tool, current_json = None, ''
+
+        if not tool_blocks:
+            break
+
+        tb = tool_blocks[0]
+        problem = get_problem_details(slug) if slug else None
+        solution = (problem or {}).get('solutions') or 'No solution available for this problem.'
+
+        assistant_content = []
+        if text_chunks:
+            assistant_content.append({'type': 'text', 'text': ''.join(text_chunks)})
+        assistant_content.append({'type': 'tool_use', 'id': tb['id'], 'name': tb['name'], 'input': tb['input']})
+
+        messages.append({'role': 'assistant', 'content': assistant_content})
+        messages.append({'role': 'user', 'content': [
+            {'type': 'tool_result', 'tool_use_id': tb['id'], 'content': solution}
+        ]})
+
+
 # ---------------------------------------------------------------------------
 # Input validation / sanitization
 # ---------------------------------------------------------------------------
@@ -156,6 +233,10 @@ def validate_and_sanitize_body(body):
 
     cm = body.get('coachingMode', 'learn')
     body['coachingMode'] = cm if cm in ('learn', 'practice', 'interview') else 'learn'
+
+    slug = body.get('slug')
+    if slug is not None and (not isinstance(slug, str) or not _SLUG_RE.match(slug)):
+        body['slug'] = None
 
 
 # ---------------------------------------------------------------------------
@@ -361,7 +442,7 @@ def build_chat_prompt(body):
 Rules:
 - Be terse. 1-2 sentences max unless the question genuinely requires more. Stop as soon as the point is made.
 - Recommend specific DS/algorithm variants for this problem, not generic advice.
-- Never give away the full solution.
+- You have a get_solution tool. Use it only when you are genuinely unsure about the optimal approach or need to get unblocked — not as a default. Never reproduce the full solution in your response regardless.
 - No preamble, no summary.
 - Never write code in any language other than {language} — not even for quick examples.
 - Format responses with markdown: use ```{language} fences for any code snippets, **bold** for key terms, and bullet lists for multi-part answers.
@@ -544,17 +625,22 @@ def handler(event, context):
 
         model_id = HAIKU_MODEL_ID if mode in ('hint', 'dsa') else SONNET_MODEL_ID
 
-        response = bedrock.invoke_model_with_response_stream(
-            modelId=model_id,
-            body=json.dumps({
-                'anthropic_version': 'bedrock-2023-05-31',
-                'max_tokens': max_tokens,
-                'system': system_prompt,
-                'messages': messages,
-            })
-        )
-
-        _stream_to_runtime(context.aws_request_id, _bedrock_text_chunks(response['body']))
+        if mode == 'chat':
+            _stream_to_runtime(
+                context.aws_request_id,
+                _chat_tool_chunks(messages, system_prompt, max_tokens, model_id, body.get('slug'))
+            )
+        else:
+            response = bedrock.invoke_model_with_response_stream(
+                modelId=model_id,
+                body=json.dumps({
+                    'anthropic_version': 'bedrock-2023-05-31',
+                    'max_tokens': max_tokens,
+                    'system': system_prompt,
+                    'messages': messages,
+                })
+            )
+            _stream_to_runtime(context.aws_request_id, _bedrock_text_chunks(response['body']))
 
     except Exception as e:
         print(f"Unhandled error: {e}")

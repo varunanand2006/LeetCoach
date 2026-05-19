@@ -130,3 +130,8 @@ interface for code feedback, hints, and DSA guidance.
 - [x] Extension update published (v1.1.0)
 - [x] Landing page (docs/index.html, GitHub Pages)
 - [x] Demo video (docs/demo.mp4)
+## Security Findings
+
+### Over-privileged CORS Configuration
+- **Risk**: The Lambda Function URL currently allows AllowOrigins: '*'. While protected by Google OAuth, this allows any website to make requests to the backend, potentially burning a user's prompt quota.
+- **Mitigation**: Restrict AllowOrigins to chrome-extension:// in 	emplate.yaml once the Extension ID is finalized.

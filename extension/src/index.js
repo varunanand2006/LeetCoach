@@ -1,8 +1,9 @@
 // index.js - Main orchestrator and entry point
 
-import { 
-  getTabState, setActiveTabId, activeTabId, coachingMode, setCoachingMode, 
-  setWeeklyRequestsUsed, getThisMonday, CLEAR_PHRASES, deleteTabState
+import {
+  getTabState, setActiveTabId, activeTabId, coachingMode, setCoachingMode,
+  setWeeklyRequestsUsed, getThisMonday, CLEAR_PHRASES, deleteTabState,
+  saveProblemState, loadProblemState, clearProblemState
 } from './state.js';
 import { 
   initDOMElements, updateUsageIndicator, updateHeader, scrollToBottom, 
@@ -11,6 +12,7 @@ import {
   chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnDsa, coachingToggleEl
 } from './ui.js';
 import { fetchUsageFromServer, streamResponse } from './api.js';
+import { renderMarkdown } from './markdown.js';
 import { getMonacoCode, getSubmissionResult } from './scraper.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -53,6 +55,37 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function renderHistoryToDOM(history) {
+  chatEl.replaceChildren();
+  for (const { role, content } of history) {
+    const el = createMessageBubble(role);
+    if (role === 'assistant') {
+      el.innerHTML = renderMarkdown(content);
+    } else {
+      el.textContent = content;
+    }
+    chatEl.appendChild(el);
+  }
+  scrollToBottom();
+}
+
+async function tryRestoreChat(state) {
+  const slug = state.slug;
+  if (!slug) return;
+  if (state.history.length > 0) {
+    renderHistoryToDOM(state.history);
+    syncHintBadge();
+    return;
+  }
+  const saved = await loadProblemState(slug);
+  if (saved && saved.history.length > 0) {
+    state.history = saved.history;
+    state.hintLevel = saved.hintLevel ?? 1;
+    renderHistoryToDOM(state.history);
+    syncHintBadge();
+  }
+}
+
 async function initPanel() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
@@ -74,6 +107,7 @@ async function initPanel() {
     updateHeader(context);
     removeEmptyState();
     if (context.userId) fetchUsageFromServer(context.userId);
+    await tryRestoreChat(state);
   } catch (_err) { /* Not on a problem page */ }
 }
 
@@ -116,6 +150,7 @@ function setupNavigationDetection() {
         chatEl.replaceChildren();
         updateHeader(context);
         syncHintBadge();
+        await tryRestoreChat(state);
       }
     } catch (_err) { /* content.js not injected */ }
   });
@@ -135,7 +170,10 @@ function setupNavigationDetection() {
 
     if (state.baseContext) {
       updateHeader(state.baseContext);
-      if (!state.domSnapshot) removeEmptyState();
+      if (!state.domSnapshot) {
+        removeEmptyState();
+        await tryRestoreChat(state);
+      }
     } else {
       try {
         const context = await new Promise((resolve) => {
@@ -145,9 +183,13 @@ function setupNavigationDetection() {
           });
         });
         if (context && context.slug) {
+          state.slug = context.slug;
           state.baseContext = context;
           updateHeader(context);
-          if (!state.domSnapshot) removeEmptyState();
+          if (!state.domSnapshot) {
+            removeEmptyState();
+            await tryRestoreChat(state);
+          }
         }
       } catch (_err) { /* Not a LeetCode page */ }
     }
@@ -193,6 +235,7 @@ async function sendMessage(userText) {
 
   if (CLEAR_PHRASES.has(userText.toLowerCase())) {
     const state = getTabState(activeTabId);
+    clearProblemState(state.slug);
     state.history = [];
     state.domSnapshot = null;
     state.hintLevel = 1;
@@ -226,6 +269,7 @@ async function sendMessage(userText) {
     },
     code: context?.code ?? '',
     language: context?.language ?? null,
+    slug: context?.slug ?? null,
     history: getTabState(activeTabId).history.slice(-10),
     submissionResult: context?.submissionResult ?? null,
     userId: context?.userId ?? null,
@@ -233,12 +277,13 @@ async function sendMessage(userText) {
   };
 
   await streamResponse(body, assistantBubble, (assistantText) => {
-    const hist = getTabState(activeTabId).history;
-    hist.push(
+    const state = getTabState(activeTabId);
+    state.history.push(
       { role: 'user', content: userText },
       { role: 'assistant', content: assistantText },
     );
-    if (hist.length > 20) hist.splice(0, 2);
+    if (state.history.length > 20) state.history.splice(0, 2);
+    saveProblemState(state.slug, state.history, state.hintLevel);
   });
 
   setInputEnabled(true);
@@ -297,6 +342,7 @@ async function handleModeRequest(mode) {
       { role: 'assistant', content: assistantText },
     );
     if (state.history.length > 20) state.history.splice(0, 2);
+    saveProblemState(state.slug, state.history, state.hintLevel);
   });
 
   setInputEnabled(true);

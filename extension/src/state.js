@@ -53,3 +53,19 @@ export function getTimeUntilResetStr() {
   if (diffHrs >= 1) return `${diffHrs} ${diffHrs === 1 ? 'hour' : 'hours'}`;
   return `${Math.max(1, diffMins)} ${Math.max(1, diffMins) === 1 ? 'minute' : 'minutes'}`;
 }
+
+export async function saveProblemState(slug, history, hintLevel) {
+  if (!slug) return;
+  await chrome.storage.local.set({ [`chat_${slug}`]: { history, hintLevel } });
+}
+
+export async function loadProblemState(slug) {
+  if (!slug) return null;
+  const data = await chrome.storage.local.get(`chat_${slug}`);
+  return data[`chat_${slug}`] ?? null;
+}
+
+export async function clearProblemState(slug) {
+  if (!slug) return;
+  await chrome.storage.local.remove(`chat_${slug}`);
+}
