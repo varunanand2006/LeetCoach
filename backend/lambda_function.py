@@ -275,12 +275,12 @@ def format_submission_result(result):
 
 def build_prompt_for_mode(mode, body):
     if mode == 'hint':
-        return build_hint_prompt(body), 64
+        return build_hint_prompt(body), 128
     if mode == 'analyze':
-        return build_analyze_prompt(body), 256
+        return build_analyze_prompt(body), 512
     if mode == 'dsa':
-        return build_dsa_prompt(body), 128
-    return build_chat_prompt(body), 256  # 'chat' or unknown
+        return build_dsa_prompt(body), 256
+    return build_chat_prompt(body), 512  # 'chat' or unknown
 
 
 def _build_preamble(body):
