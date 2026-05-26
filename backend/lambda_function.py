@@ -337,7 +337,7 @@ Your task: {instruction}
 
 Rules:
 - No code or pseudocode. No preamble or summary. 
-- Get straight to the point in a simple, easyily understandable way
+- Get straight to the point in a simple, easily understandable way
 - Never reveal the complete algorithm.
 - Be confident — state it once and stop. No second-guessing or mid-response revisions.
 - Give small tips if the user is close to a solution, larger tips if the user is stuck
@@ -351,7 +351,7 @@ def build_analyze_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            "Coaching mode: LEARN. For each issue, briefly explain why it matters and what direction to consider for a fix (no code)."
+            "Coaching mode: LEARN. For each issue, very briefly explain why it matters and what direction to consider for a fix (no code). One very short bullet per issue"
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
@@ -359,7 +359,7 @@ def build_analyze_prompt(body):
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. List issues only — no explanations, no fix hints. Blunt and precise."
+            "Coaching mode: PRACTICE. List issues only — no explanations, no fix hints. Blunt and precise. One very short bullet per issue"
         )
 
     return preamble + f"""
