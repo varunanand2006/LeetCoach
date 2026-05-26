@@ -308,52 +308,39 @@ def build_hint_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            f"Coaching mode: LEARN. The user is new to DSA. Freely name the data structure or algorithm "
-            f"at any hint level, show a {language} syntax example if it helps, and explain why it fits. Be encouraging and educational."
+            f"Coaching mode: LEARN. Freely name the data structure or algorithm, show a {language} syntax example if helpful, and explain why it fits."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
-            "Coaching mode: INTERVIEW. You are a senior technical interviewer. Do NOT give hints easily. "
-            "Instead of a hint, ask the user to explain their current logic or how they plan to handle "
-            "specific edge cases. Be professional, slightly critical, and focused on communication."
+            "Coaching mode: INTERVIEW. Don't give a hint — ask the user to explain their current logic or how they'd handle a specific edge case, and nudge towards the right direction like an interviewer would. Be professional and slightly critical."
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. The user knows DSA. Give only the minimal directional nudge. "
-            "No data structure names, no syntax, no explanations. Just point toward the right door."
+            "Coaching mode: PRACTICE. Minimal directional nudge only — no data structure names, no syntax, no explanations."
         )
 
     level_instructions = {
-        1: (
-            "One sentence only. Give a directional nudge without naming any data structure "
-            "or algorithm — point toward a property the solution needs."
-        ),
-        2: (
-            "1-2 sentences. Name the data structure or algorithm category. "
-            "Do NOT explain how to implement it."
-        ),
-        3: (
-            "2 sentences max. Name the exact structure and what to store in it. "
-            "Do NOT write code."
-        ),
+        1: "One sentence only. Nudge toward a property the solution needs — no data structure or algorithm names.",
+        2: "1-2 sentences. Name the data structure or algorithm category. No implementation details.",
+        3: "2 sentences max. Name the exact structure and what to store in it. No code.",
     }
 
     instruction = level_instructions.get(hint_level, level_instructions[3])
     if coaching_mode == 'interview':
-        instruction = "Instead of the hint described below, ask a clarifying question about their approach."
+        instruction = "Ask a clarifying question about their approach instead of giving a hint."
 
     return preamble + f"""
-Hint level requested: {hint_level} of 3
+Hint level {hint_level}/3
 {coaching_rule}
 
 Your task: {instruction}
 
 Rules:
-- Never write actual code or pseudocode
-- Never reveal the complete algorithm
-- Be professional — you are an interviewer
-- No preamble or summary — just the response
-- Any data structure or syntax references must use {language} conventions
+- No code or pseudocode. No preamble or summary.
+- Never reveal the complete algorithm.
+- Be confident — state it once and stop. No second-guessing or mid-response revisions.
+- Give small tips if the user is close to a solution, larger tips if the user is stuck
+- Use {language} naming conventions for any data structure references.
 """
 
 
@@ -363,29 +350,26 @@ def build_analyze_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            "Coaching mode: LEARN. For each issue explain why it matters conceptually and what direction "
-            "to think about for a fix (no full solution, no code)."
+            "Coaching mode: LEARN. For each issue, briefly explain why it matters and what direction to consider for a fix (no code)."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
-            "Coaching mode: INTERVIEW. You are an interviewer. Point out flaws as if you are "
-            "asking the candidate to justify their choices. 'How would this handle X?' or 'What is the "
-            "trade-off of this approach?'"
+            "Coaching mode: INTERVIEW. Frame issues as questions: 'How would this handle X?' or 'What's the trade-off here?'"
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. List issues only — no explanations, no fix hints. Be blunt and precise."
+            "Coaching mode: PRACTICE. List issues only — no explanations, no fix hints. Blunt and precise."
         )
 
     return preamble + f"""
 {coaching_rule}
 
-Your task: Analyze the code. 3 bullets max, one line each. Skip any section that has no issue:
-- **Correctness:** is the logic right? If there's a submission failure, diagnose why. Point out any bugs with specific line numbers if possible.
+3 bullets max, one line each. Skip any section with no issue:
+- **Correctness:** logic correct? If there's a submission failure, diagnose it. Include line numbers where possible.
 - **Complexity:** Big-O time and space. Is it optimal?
 - **Edge cases:** any obvious gaps.
 
-No rewrites, no full solutions. Be concise — stop as soon as the point is made. Use ```{language} fences if quoting code. Never write code in any language other than {language}.
+No rewrites, no full solutions. Be confident — state each point once and stop. Use ```{language} fences for any code. {language} only.
 """
 
 
@@ -395,23 +379,21 @@ def build_dsa_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            f"Coaching mode: LEARN. Explain why this pattern fits the problem and include a one-line "
-            f"syntax example in {language} for the key data structure operation."
+            f"Coaching mode: LEARN. Explain why this pattern fits, and include a one-line {language} syntax example for the key operation."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
-            "Coaching mode: INTERVIEW. State the pattern and structure briefly, then ask the user "
-            "to explain the space-time trade-off of this specific choice compared to a naive approach."
+            "Coaching mode: INTERVIEW. State the pattern and structure briefly, then ask the user to explain the time-space trade-off vs. a naive approach."
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. Name the pattern and structure only. Zero explanation. Zero syntax."
+            "Coaching mode: PRACTICE. Pattern and structure name only. Zero explanation. Zero syntax."
         )
 
     return preamble + f"""
 {coaching_rule}
 
-Your task: 1-3 lines total. State the algorithmic pattern, the specific data structure variant, and optimal complexity. No code, no explanation — just the tools. Bold pattern and structure names (e.g., **sliding window**, **monotonic deque**). Use {language} naming conventions for data structures. If the last submission shows a TLE or MLE, factor the complexity requirement into your recommendation.
+1-3 lines total. State: algorithmic pattern, specific data structure variant, optimal complexity. Bold pattern/structure names (e.g., **sliding window**, **monotonic deque**). No extra explanation. {language} naming conventions. If the last submission is TLE/MLE, factor that into your complexity recommendation.
 """
 
 
@@ -421,31 +403,28 @@ def build_chat_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            f"Coaching mode: LEARN. Teach freely. Explain the concept, name the algorithm, show {language} syntax "
-            "when helpful, and build the user's understanding. Be thorough enough to actually teach, not just hint."
+            f"Coaching mode: LEARN. Teach freely — explain the concept, name the algorithm, show {language} syntax when helpful."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
-            "Coaching mode: INTERVIEW. You are a senior technical interviewer. Evaluate the user's "
-            "statements. If they explain logic, challenge it or ask for complexity. If they ask for help, "
-            "guide them with 'Socratic' questions. Stay in character."
+            "Coaching mode: INTERVIEW. You are a senior technical interviewer. Challenge the user's logic, ask for complexity analysis, and use Socratic questions. Stay in character."
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. The user knows DSA. Give the minimal nudge only — no concept explanations, "
-            "no syntax. If they ask something they should already know, ask a probing question back. Max 1-2 sentences."
+            "Coaching mode: PRACTICE. Minimal nudge only — no concept explanations, no syntax. If they ask something they should know, ask a probing question back. Max 1-2 sentences."
         )
 
     return preamble + f"""
 {coaching_rule}
 
 Rules:
-- Be terse. 1-2 sentences max unless the question genuinely requires more. Stop as soon as the point is made.
-- Recommend specific DS/algorithm variants for this problem, not generic advice.
-- You have a get_solution tool. Use it only when you are genuinely unsure about the optimal approach or need to get unblocked — not as a default. Never reproduce the full solution in your response regardless.
+- Be concise. 1-2 sentences unless the question genuinely requires more.
+- Be confident — state your answer once and stop. Never second-guess or revise mid-response.
+- Recommend specific DS/algorithm variants, not generic advice.
 - No preamble, no summary.
-- Never write code in any language other than {language} — not even for quick examples.
-- Format responses with markdown: use ```{language} fences for any code snippets, **bold** for key terms, and bullet lists for multi-part answers.
+- {language} only for any code.
+- get_solution tool: use only when genuinely unsure about the optimal approach. Never reproduce the full solution.
+- Markdown: ```{language} fences for code, **bold** key terms, bullets for multi-part answers.
 """
 
 
