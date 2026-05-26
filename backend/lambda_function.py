@@ -336,7 +336,8 @@ Hint level {hint_level}/3
 Your task: {instruction}
 
 Rules:
-- No code or pseudocode. No preamble or summary.
+- No code or pseudocode. No preamble or summary. 
+- Get straight to the point in a simple, easyily understandable way
 - Never reveal the complete algorithm.
 - Be confident — state it once and stop. No second-guessing or mid-response revisions.
 - Give small tips if the user is close to a solution, larger tips if the user is stuck
