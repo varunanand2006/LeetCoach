@@ -230,18 +230,28 @@ interface for code feedback, hints, and DSA guidance.
 - Test a purchase from the extension itself with card `4242 4242 4242 4242`, then refund it in the dashboard to exercise `charge.refunded` and prove the `payment_intent_data[metadata]` plumbing reached the Charge
 - A 500 in Stripe's delivery log means IAM; the webhook's CloudWatch log names the missing action
 
+## Going Live
+Test and live mode are **entirely separate accounts** inside Stripe — separate keys, separate webhook endpoints, separate `whsec_`, separate payment history. Nothing configured in test mode carries over, so every step below is a fresh setup, not a toggle.
+
+1. Complete Stripe's business verification (bank details, identity). Live keys don't exist until this is done
+2. Register the **same** `PaymentWebhookUrl` again, this time with the dashboard in **live** mode, subscribed to the same four events. It gets a *different* `whsec_`
+3. Redeploy with both live values: `sam deploy --parameter-overrides "StripeSecretKey=sk_live_... StripeWebhookSecret=whsec_<live one> MonthlyBudgetUsd=50"`
+4. Buy one small pack with a **real card** and refund it. Test-mode success does not prove live wiring
+5. Only then bump `manifest.json` and publish the extension
+
+**Ordering matters in one direction.** Deploying live keys before the extension update is harmless. Publishing the extension while the Lambda still holds `sk_test_` is not — users get checkout pages that look completely real and take no money.
+
 ## Budgets (three exist; only one can stop production)
 | Budget | Limit | Action |
 |---|---|---|
 | `LeetCoach-Bedrock-leetcoach` | $50 | Kill switch → live role. **The only one that can stop production** |
 | `LeetCoach-Monthly` | $10 | Email only (`Actions: []`). Deliberate early-warning tripwire, not a cutoff |
-| `LeetCoach-Bedrock-leet-coach` | $10 | Kill switch → the orphan stack's role. Cannot affect production |
+| `LeetCoach-Bedrock-leet-coach` | — | **Deleted 2026-07-25** with the orphan stack |
 
-## Duplicate `leet-coach` Stack (unresolved)
-- A second CloudFormation stack, `leet-coach`, created 2026-04-11, is still live and **nothing points at it**
-- Owns a public Function URL on `python3.11` with Bedrock invoke permissions, its own $10 budget + kill switch, and `leet-coach-users` — a **different table** from `leetcoach-users`, holding one stale row (`userId: varunanand2006`, last seen 2026-04-14, from before Google-sub IDs)
-- Because the table names differ, `delete-stack` on it **cannot** touch `leetcoach-users` or `leetcoach-payments`
-- `aws lambda list-functions` returns functions from both stacks — **`[0]` in a JMESPath query can silently grab the orphan.** Filter on the full function name
+## Duplicate `leet-coach` Stack (resolved 2026-07-25)
+- A second CloudFormation stack, `leet-coach`, existed from 2026-04-11 to 2026-07-25 with nothing pointing at it. Deleted
+- It ran a public Function URL on `python3.11` with Bedrock invoke permissions, its own $10 budget + kill switch, and `leet-coach-users` — a *different* table from `leetcoach-users`, holding one stale row from before Google-sub IDs. The differing table names are why deleting it was safe
+- **The lasting lesson**: `aws lambda list-functions` returned functions from both stacks, and `[0]` in a JMESPath query silently grabbed the orphan — which is how a correctly deployed `python3.14` function was first misread as still being on `python3.11`. Filter on the full function name, never positionally
 
 ## Environment Notes (this machine)
 - Shell is PowerShell: no `\` line continuations (use a backtick), no `cut`/`head`/`tail`, no `&&`
@@ -308,9 +318,9 @@ interface for code feedback, hints, and DSA guidance.
 - [x] Deployed to stack `leetcoach`: both functions on `python3.14`, `leetcoach-payments` ACTIVE with TTL, real `whsec_` in place, Stripe key in **test mode**, kill-switch budget $50
 - [x] Webhook verified live — unsigned and forged-signature requests both rejected with HTTP 400
 - [x] Webhook role verified for `TransactWriteItems` via `iam simulate-principal-policy`
-- [ ] **One test-mode purchase**, which is the only thing that proves the last two unknowns: the `runtime_client` monkey-patch under Python 3.14, and the end-to-end grant path
-- [ ] Decide on the orphan `leet-coach` stack (see above)
-- [ ] Switch `StripeSecretKey` to `sk_live_` and publish the extension update
+- [x] **Test-mode purchases verified live (2026-07-25)** — two `checkout.session.completed` grants credited 500 each and independently; one `charge.refunded` revoked exactly 500, leaving 500. The revoke proves `payment_intent_data[metadata]` reached the Charge, which is the only way a refund can identify the user. `runtime_client` streaming confirmed working on Python 3.14
+- [x] Orphan `leet-coach` stack deleted; `leetcoach` and `aws-sam-cli-managed-default` are the only stacks left
+- [ ] **Go live** — this is the only remaining work. See "Going Live" below
 - [ ] Raise the $10 budget cap before taking any payment — the kill switch can Deny Bedrock for a paying customer
 - [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings
