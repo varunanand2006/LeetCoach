@@ -1,6 +1,8 @@
 // state.js - Centralized state management for the side panel
 
-export const WEEKLY_LIMIT = 100;
+// Must match WEEKLY_LIMIT in lambda_function.py — the server is authoritative,
+// so a mismatch shows the user a balance the backend disagrees with.
+export const WEEKLY_LIMIT = 50;
 export const API_URL = 'https://5y6thwif3uawisncrkvzphmvie0tanli.lambda-url.us-east-1.on.aws/';
 export const CLEAR_PHRASES = new Set(['/clear', '/reset']);
 
@@ -32,6 +34,7 @@ export function setPurchasedCredits(count) { purchasedCredits = count; }
  * trusted. Only `id` is sent.
  */
 export const PROMPT_PACKS = [
+  { id: 'mini', credits: 50, price: '$0.99' },
   { id: 'small', credits: 500, price: '$4.99' },
   { id: 'large', credits: 1500, price: '$9.99' },
 ];

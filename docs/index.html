@@ -1,13 +1,16 @@
 <!DOCTYPE html>
 <html class="dark" lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
   <title>LeetCoach | AI Agents for LeetCode Grinding + Interviews</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    rel="stylesheet" />
   <script id="tailwind-config">
     tailwind.config = {
       darkMode: "class",
@@ -41,42 +44,42 @@
       background: radial-gradient(circle at 50% 30%, rgba(255, 161, 22, 0.15) 0%, transparent 60%);
       pointer-events: none;
     }
-    
+
     .nav-link {
       color: #A3A3A3;
       transition: color 0.2s;
     }
-    
+
     .nav-link:hover {
       color: #ffffff;
     }
-    
+
     .border-gradient {
       background: linear-gradient(#000000, #000000) padding-box,
-                  linear-gradient(180deg, rgba(255,161,22,0.3) 0%, rgba(255,161,22,0) 100%) border-box;
+        linear-gradient(180deg, rgba(255, 161, 22, 0.3) 0%, rgba(255, 161, 22, 0) 100%) border-box;
       border: 1px solid transparent;
     }
 
     .border-subtle {
       border: 1px solid #262626;
     }
-    
+
     .card-hover {
       transition: transform 0.2s, background-color 0.2s;
     }
-    
+
     .card-hover:hover {
       transform: translateY(-2px);
       background-color: #141414;
     }
-    
+
     .glass-mockup {
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid #262626;
-      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.8);
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
     }
-    
+
     .gradient-text {
       background: linear-gradient(90deg, #FFFFFF, #A3A3A3);
       -webkit-background-clip: text;
@@ -95,13 +98,16 @@
     }
   </style>
 </head>
+
 <body class="bg-background text-white selection:bg-primary/30 selection:text-primary antialiased">
-  
+
   <!-- Announcement Bar -->
-  <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank" class="block w-full bg-surface-light border-b border-border-color py-2.5 text-center text-sm text-text-gray hover:text-white transition-colors">
+  <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
+    class="block w-full bg-surface-light border-b border-border-color py-2.5 text-center text-sm text-text-gray hover:text-white transition-colors">
     <span class="inline-flex items-center gap-2">
       <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-      Live on Chrome Web Store: LeetCoach v1.1.0 — Dive into interview mode and learn what it takes to pass technical interviews <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+      Live on Chrome Web Store: LeetCoach v1.2.0 — Dive into interview mode and learn what it takes to pass technical
+      interviews <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
     </span>
   </a>
 
@@ -115,7 +121,8 @@
       <div class="hidden md:flex items-center space-x-8">
         <a class="nav-link text-sm font-medium" href="#features">Product</a>
         <a class="nav-link text-sm font-medium" href="#modes">Solutions</a>
-        <a class="nav-link text-sm font-medium" href="https://github.com/varunanand2006/LeetCoach" target="_blank">Open Source</a>
+        <a class="nav-link text-sm font-medium" href="https://github.com/varunanand2006/LeetCoach" target="_blank">Open
+          Source</a>
         <a class="nav-link text-sm font-medium" href="#pricing">Pricing</a>
       </div>
       <div class="flex items-center gap-4">
@@ -131,23 +138,25 @@
     <!-- Hero Section -->
     <section class="relative pt-24 pb-20 overflow-hidden">
       <div class="absolute inset-0 hero-glow"></div>
-      
+
       <div class="max-w-7xl mx-auto px-6 flex flex-col items-center text-center relative z-10">
         <div class="space-y-8 max-w-3xl flex flex-col items-center">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border-color bg-surface-light text-xs font-mono text-text-gray">
+          <div
+            class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border-color bg-surface-light text-xs font-mono text-text-gray">
             <span class="material-symbols-outlined text-[14px] text-primary">terminal</span>
             Powered by Claude 4.6 Sonnet
           </div>
-          
+
           <h1 class="text-5xl md:text-6xl lg:text-[4.5rem] font-medium tracking-tight text-white leading-[1.1]">
-            LeetCode Code Reviewer <br/>
+            LeetCode Code Reviewer <br />
             For <span class="text-primary">Interview Prep</span>
           </h1>
-          
+
           <p class="text-lg md:text-xl text-text-gray max-w-2xl leading-relaxed mx-auto">
-            LeetCoach is a code reviewer sitting as a chrome extension in the sidebar, teaching you DSA concepts, highlighting bugs, and asking questions about what you wrote like an interviewer would.
+            LeetCoach is a code reviewer sitting as a chrome extension in the sidebar, teaching you DSA concepts,
+            highlighting bugs, and asking questions about what you wrote like an interviewer would.
           </p>
-          
+
           <div class="flex flex-col sm:flex-row gap-4 pt-2 w-full justify-center">
             <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
               class="bg-white text-black font-semibold px-8 py-4 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors text-lg">
@@ -155,7 +164,7 @@
             </a>
           </div>
         </div>
-        
+
         <div class="relative flex justify-center items-center w-full max-w-6xl mt-20">
           <div class="glass-mockup w-full shadow-2xl bg-black">
             <div class="bg-surface-light border-b border-border-color px-4 py-3 flex items-center gap-2">
@@ -178,45 +187,86 @@
       <div class="max-w-7xl mx-auto px-6">
         <div class="mb-16">
           <h2 class="text-3xl md:text-5xl font-medium text-white mb-6 tracking-tight max-w-2xl">
-            Build your coding intuition. <br/>
+            Build your coding intuition. <br />
             <span class="text-text-gray">Integrated into your interview prep.</span>
           </h2>
           <p class="text-lg text-text-gray max-w-2xl">
-            Stop context-switching. LeetCoach reads your code, submission results, and problem descriptions directly from LeetCode. No more copy-pasting into ChatGPT.
+            Stop context-switching. LeetCoach reads your code, submission results, and problem descriptions directly
+            from LeetCode. No more copy-pasting into ChatGPT.
           </p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center">
           <!-- Card 1 -->
           <div class="bg-surface border-subtle p-8 rounded-xl card-hover flex flex-col h-full">
-            <div class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
+            <div
+              class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
               <span class="material-symbols-outlined text-primary">lightbulb</span>
             </div>
             <h3 class="text-xl font-semibold text-white mb-3">Progressive Hints</h3>
             <div class="text-text-gray leading-relaxed flex-grow">
-              We won't just give you the answer. LeetCoach uses progressive hints to help you figure it out on your own. It starts by pointing you in the right direction, then reveals the algorithmic pattern, and finally the data structure. It's built to train your problem-solving skills the way a senior engineer would guide you.
+              We won't just give you the answer. LeetCoach uses progressive hints to help you figure it out on your own.
+              It starts by pointing you in the right direction, then reveals the algorithmic pattern, and finally the
+              data structure. It's built to train your problem-solving skills the way a senior engineer would guide you.
             </div>
           </div>
-          
+
           <!-- Card 2 -->
           <div class="bg-surface border-subtle p-8 rounded-xl card-hover flex flex-col h-full">
-            <div class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
+            <div
+              class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
               <span class="material-symbols-outlined text-primary">code_blocks</span>
             </div>
             <h3 class="text-xl font-semibold text-white mb-3">Code Analysis</h3>
             <div class="text-text-gray leading-relaxed flex-grow">
-              LeetCoach reviews your code to catch bugs and edge cases while calculating your Big-O time and space complexity. It compares your solution against the optimal approach, so you can learn how to write production-ready code instead of just passing the basic test cases.
+              LeetCoach reviews your code to catch bugs and edge cases while calculating your Big-O time and space
+              complexity. It compares your solution against the optimal approach, so you can learn how to write
+              production-ready code instead of just passing the basic test cases.
             </div>
           </div>
 
           <!-- Card 3 -->
           <div class="bg-surface border-subtle p-8 rounded-xl card-hover flex flex-col h-full">
-            <div class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
+            <div
+              class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
               <span class="material-symbols-outlined text-primary">schema</span>
             </div>
             <h3 class="text-xl font-semibold text-white mb-3">DSA Guidance & Chat</h3>
             <div class="text-text-gray leading-relaxed flex-grow">
-              If you're stuck on a tricky algorithm, LeetCoach can act as your technical interviewer. It identifies the optimal patterns and asks you questions to challenge your logic. You'll have to defend your engineering trade-offs, giving you practice for real FAANG interviews.
+              If you're stuck on a tricky algorithm, LeetCoach can act as your technical interviewer. It identifies the
+              optimal patterns and asks you questions to challenge your logic. You'll have to defend your engineering
+              trade-offs, giving you practice for real FAANG interviews.
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="bg-surface border-subtle p-8 rounded-xl card-hover flex flex-col h-full">
+            <div
+              class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
+              <span class="material-symbols-outlined text-primary">account_tree</span>
+            </div>
+            <h3 class="text-xl font-semibold text-white mb-3">Visual Diagrams</h3>
+            <div class="text-text-gray leading-relaxed flex-grow">
+              See your algorithms come to life. LeetCoach can generate diagrams alongside any response — tree
+              structures, state machines, flowcharts, and more — rendered right in the sidebar so you can visualize the
+              approach instead of just reading about it.
+            </div>
+            <div class="mt-6 rounded-lg overflow-hidden border border-border-color">
+              <img src="./bst-diagram.png" alt="Binary search tree diagram example" class="w-full object-cover" />
+            </div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="bg-surface border-subtle p-8 rounded-xl card-hover flex flex-col h-full">
+            <div
+              class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
+              <span class="material-symbols-outlined text-primary">summarize</span>
+            </div>
+            <h3 class="text-xl font-semibold text-white mb-3">Session Review Reports</h3>
+            <div class="text-text-gray leading-relaxed flex-grow">
+              When you're done with a problem, generate a full retrospective report. LeetCoach reviews your entire
+              session — how you approached the problem, where you struggled, the optimal solution with its complexity,
+              and what patterns to practice next. It's the debrief a mentor would give you.
             </div>
           </div>
         </div>
@@ -231,38 +281,47 @@
             See it in action.
           </h2>
           <p class="text-lg text-text-gray max-w-2xl mx-auto">
-            Actual coaching conversations showing how LeetCoach catches bugs, explains optimal patterns, and challenges your logic.
+            Actual coaching conversations showing how LeetCoach catches bugs, explains optimal patterns, and challenges
+            your logic.
           </p>
         </div>
-        
+
         <!-- Carousel Container -->
         <div class="relative w-full max-w-6xl mx-auto" id="conversation-carousel">
           <!-- Slides -->
           <div class="overflow-hidden relative rounded-xl border border-border-color shadow-2xl bg-black">
             <div class="flex transition-transform duration-500 ease-in-out items-start" id="carousel-inner">
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot (4).png" alt="Conversation 1" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105504.png" alt="Conversation 2" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105726.png" alt="Conversation 3" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105940.png" alt="Conversation 4" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110144.png" alt="Conversation 5" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110303.png" alt="Conversation 6" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot (4).png" alt="Conversation 1"
+                  class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105504.png"
+                  alt="Conversation 2" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105726.png"
+                  alt="Conversation 3" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105940.png"
+                  alt="Conversation 4" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110144.png"
+                  alt="Conversation 5" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110303.png"
+                  alt="Conversation 6" class="w-full h-auto" /></div>
             </div>
           </div>
-          
+
           <!-- Prev/Next Controls -->
-          <button id="carousel-prev" class="absolute top-1/2 -left-4 md:-left-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg">
+          <button id="carousel-prev"
+            class="absolute top-1/2 -left-4 md:-left-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg">
             <span class="material-symbols-outlined">chevron_left</span>
           </button>
-          <button id="carousel-next" class="absolute top-1/2 -right-4 md:-right-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg">
+          <button id="carousel-next"
+            class="absolute top-1/2 -right-4 md:-right-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg">
             <span class="material-symbols-outlined">chevron_right</span>
           </button>
-          
+
           <!-- Indicators -->
           <div class="flex justify-center gap-3 mt-6" id="carousel-indicators">
             <!-- JS will populate -->
           </div>
         </div>
-        
+
         <script>
           document.addEventListener('DOMContentLoaded', () => {
             const inner = document.getElementById('carousel-inner');
@@ -272,9 +331,9 @@
             const slidesCount = inner.children.length;
             let currentIndex = 0;
             let interval;
-            
+
             // Create indicators
-            for(let i = 0; i < slidesCount; i++) {
+            for (let i = 0; i < slidesCount; i++) {
               const dot = document.createElement('button');
               dot.className = `w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === 0 ? 'bg-primary w-6' : 'bg-border-color hover:bg-text-gray'}`;
               dot.addEventListener('click', () => {
@@ -284,7 +343,7 @@
               indicatorsContainer.appendChild(dot);
             }
             const indicators = indicatorsContainer.children;
-            
+
             function goToSlide(index) {
               currentIndex = index;
               inner.style.transform = `translateX(-${currentIndex * 100}%)`;
@@ -292,32 +351,32 @@
                 dot.className = `w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === currentIndex ? 'bg-primary w-6' : 'bg-border-color hover:bg-text-gray'}`;
               });
             }
-            
+
             function nextSlide() {
               currentIndex = (currentIndex < slidesCount - 1) ? currentIndex + 1 : 0;
               goToSlide(currentIndex);
             }
-            
+
             prev.addEventListener('click', () => {
               currentIndex = (currentIndex > 0) ? currentIndex - 1 : slidesCount - 1;
               goToSlide(currentIndex);
               resetInterval();
             });
-            
+
             next.addEventListener('click', () => {
               nextSlide();
               resetInterval();
             });
-            
+
             function startInterval() {
               interval = setInterval(nextSlide, 4000);
             }
-            
+
             function resetInterval() {
               clearInterval(interval);
               startInterval();
             }
-            
+
             startInterval();
           });
         </script>
@@ -328,7 +387,8 @@
     <section class="section-spacing bg-surface border-y border-border-color" id="modes">
       <div class="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
         <div>
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border-color bg-surface-light text-xs font-mono text-text-gray mb-6">
+          <div
+            class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border-color bg-surface-light text-xs font-mono text-text-gray mb-6">
             <span class="material-symbols-outlined text-[14px] text-primary">tune</span>
             Modes
           </div>
@@ -336,40 +396,70 @@
             Tailored to your goals
           </h2>
           <p class="text-lg text-text-gray mb-8">
-            Switch between three distinct coaching modes depending on whether you're learning a new topic, grinding problems, or preparing for a real interview.
+            Switch between three distinct coaching modes depending on whether you're learning a new topic, grinding
+            problems, or preparing for a real interview.
           </p>
 
           <ul class="space-y-6">
             <li class="flex items-start gap-4">
-              <div class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
+              <div
+                class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
                 <span class="material-symbols-outlined text-[18px] text-primary">school</span>
               </div>
               <div>
                 <h4 class="text-white font-medium mb-1">Learn Mode</h4>
-                <p class="text-sm text-text-gray">Highly educational. Get detailed explanations of algorithms and line-by-line breakdowns.</p>
+                <p class="text-sm text-text-gray">Highly educational. Get detailed explanations of algorithms and
+                  line-by-line breakdowns.</p>
               </div>
             </li>
             <li class="flex items-start gap-4">
-              <div class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
+              <div
+                class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
                 <span class="material-symbols-outlined text-[18px] text-primary">fitness_center</span>
               </div>
               <div>
                 <h4 class="text-white font-medium mb-1">Practice Mode</h4>
-                <p class="text-sm text-text-gray">Minimal nudges. Receive just enough guidance to get unstuck without giving away the answer.</p>
+                <p class="text-sm text-text-gray">Minimal nudges. Receive just enough guidance to get unstuck without
+                  giving away the answer.</p>
               </div>
             </li>
             <li class="flex items-start gap-4">
-              <div class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
+              <div
+                class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
                 <span class="material-symbols-outlined text-[18px] text-primary">work</span>
               </div>
               <div>
                 <h4 class="text-white font-medium mb-1">Interview Mode</h4>
-                <p class="text-sm text-text-gray">Strict and Socratic. Simulates a real technical interview with probing questions and edge-case focus.</p>
+                <p class="text-sm text-text-gray">Strict and Socratic. Simulates a real technical interview with probing
+                  questions and edge-case focus.</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-4">
+              <div
+                class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-[18px] text-primary">speed</span>
+              </div>
+              <div>
+                <h4 class="text-white font-medium mb-1">Optimize</h4>
+                <p class="text-sm text-text-gray">Get a focused efficiency review of your code. The current Big-O,
+                  runtime, and memory, as well as how to improve it.</p>
+              </div>
+            </li>
+            <li class="flex items-start gap-4">
+              <div
+                class="mt-1 w-8 h-8 rounded-full bg-surface-light border border-border-color flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-[18px] text-primary">rate_review</span>
+              </div>
+              <div>
+                <h4 class="text-white font-medium mb-1">Interview Feedback</h4>
+                <p class="text-sm text-text-gray">Get the debrief a real interviewer would give you. Honest, specific
+                  feedback on your approach, code quality, and complexity, exactly what you need to hear before your
+                  next interview.</p>
               </div>
             </li>
           </ul>
         </div>
-        
+
         <!-- Mockup image moved from hero -->
         <div class="relative flex justify-center items-center">
           <div class="glass-mockup w-full shadow-2xl">
@@ -386,37 +476,123 @@
 
     <!-- Pricing (Simplified, clean) -->
     <section class="section-spacing bg-background" id="pricing">
-      <div class="max-w-3xl mx-auto px-6 text-center">
+      <div class="max-w-5xl mx-auto px-6 text-center">
         <h2 class="text-3xl md:text-5xl font-medium text-white mb-6 tracking-tight">Simple, Honest Pricing</h2>
-        <p class="text-lg text-text-gray mb-12">No credit card required. Free for all developers.</p>
-        
-        <div class="border-gradient rounded-2xl p-1 bg-surface-light">
-          <div class="bg-background rounded-xl p-10 md:p-16 border border-border-color">
-            <h3 class="text-2xl font-semibold text-white mb-2">Community Edition</h3>
-            <div class="flex items-baseline justify-center gap-1 mb-8">
-              <span class="text-5xl font-bold text-white">$0</span>
-              <span class="text-text-gray">/ forever</span>
+        <p class="text-lg text-text-gray mb-12">50 free prompts every week. Buy more when you need them — no
+          subscription required.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <!-- Free Tier -->
+          <div class="border-gradient rounded-2xl p-1 bg-surface-light">
+            <div class="bg-background rounded-xl p-8 border border-border-color h-full flex flex-col">
+              <h3 class="text-xl font-semibold text-white mb-2">Free</h3>
+              <div class="flex items-baseline justify-center gap-1 mb-6">
+                <span class="text-4xl font-bold text-white">$0</span>
+                <span class="text-text-gray">/ week</span>
+              </div>
+              <ul class="space-y-3 text-left mb-8 flex-grow">
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  50 prompts per week
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  Powered by Claude 4.6 Sonnet
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  All 20+ programming languages
+                </li>
+              </ul>
+              <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
+                class="block w-full bg-white text-black font-semibold py-3 rounded-lg hover:bg-gray-200 transition-colors text-sm">
+                Get Started
+              </a>
             </div>
-            
-            <ul class="space-y-4 max-w-sm mx-auto text-left mb-10">
-              <li class="flex items-center gap-3 text-text-gray">
-                <span class="material-symbols-outlined text-primary text-[20px]">check</span>
-                100 AI requests per week
-              </li>
-              <li class="flex items-center gap-3 text-text-gray">
-                <span class="material-symbols-outlined text-primary text-[20px]">check</span>
-                Powered by Claude 4.6 Sonnet
-              </li>
-              <li class="flex items-center gap-3 text-text-gray">
-                <span class="material-symbols-outlined text-primary text-[20px]">check</span>
-                All 20+ programming languages
-              </li>
-            </ul>
-            
-            <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
-              class="block w-full bg-white text-black font-semibold py-4 rounded-lg hover:bg-gray-200 transition-colors">
-              Get Started Now
-            </a>
+          </div>
+
+          <!-- Mini Pack -->
+          <div class="border-subtle rounded-2xl bg-surface-light">
+            <div class="bg-background rounded-xl p-8 border border-border-color h-full flex flex-col">
+              <h3 class="text-xl font-semibold text-white mb-2">Mini</h3>
+              <div class="flex items-baseline justify-center gap-1 mb-6">
+                <span class="text-4xl font-bold text-white">$0.99</span>
+              </div>
+              <ul class="space-y-3 text-left mb-8 flex-grow">
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  50 prompts
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  One-time purchase
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  Credits never expire
+                </li>
+              </ul>
+              <span
+                class="block w-full bg-surface-light text-text-gray font-semibold py-3 rounded-lg text-sm text-center border border-border-color">
+                Buy in extension
+              </span>
+            </div>
+          </div>
+
+          <!-- Small Pack -->
+          <div class="border-subtle rounded-2xl bg-surface-light">
+            <div class="bg-background rounded-xl p-8 border border-border-color h-full flex flex-col">
+              <h3 class="text-xl font-semibold text-white mb-2">Small</h3>
+              <div class="flex items-baseline justify-center gap-1 mb-6">
+                <span class="text-4xl font-bold text-white">$4.99</span>
+              </div>
+              <ul class="space-y-3 text-left mb-8 flex-grow">
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  500 prompts
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  One-time purchase
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  Credits never expire
+                </li>
+              </ul>
+              <span
+                class="block w-full bg-surface-light text-text-gray font-semibold py-3 rounded-lg text-sm text-center border border-border-color">
+                Buy in extension
+              </span>
+            </div>
+          </div>
+
+          <!-- Large Pack -->
+          <div class="border-subtle rounded-2xl bg-surface-light">
+            <div class="bg-background rounded-xl p-8 border border-border-color h-full flex flex-col">
+              <h3 class="text-xl font-semibold text-white mb-2">Large</h3>
+              <div class="flex items-baseline justify-center gap-1 mb-6">
+                <span class="text-4xl font-bold text-white">$9.99</span>
+              </div>
+              <ul class="space-y-3 text-left mb-8 flex-grow">
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  1,500 prompts
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  One-time purchase
+                </li>
+                <li class="flex items-center gap-3 text-text-gray text-sm">
+                  <span class="material-symbols-outlined text-primary text-[18px]">check</span>
+                  Credits never expire
+                </li>
+              </ul>
+              <span
+                class="block w-full bg-surface-light text-text-gray font-semibold py-3 rounded-lg text-sm text-center border border-border-color">
+                Buy in extension
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -447,31 +623,36 @@
             <span class="text-lg font-semibold text-white">LeetCoach</span>
           </div>
           <p class="text-sm text-text-gray max-w-sm">
-            The missing AI coaching sidebar for LeetCode. Built to help developers master algorithms and technical interviews.
+            The missing AI coaching sidebar for LeetCode. Built to help developers master algorithms and technical
+            interviews.
           </p>
         </div>
-        
+
         <div>
           <h4 class="text-white font-medium mb-4">Product</h4>
           <ul class="space-y-3">
             <li><a href="#features" class="text-sm text-text-gray hover:text-white transition-colors">Features</a></li>
-            <li><a href="#modes" class="text-sm text-text-gray hover:text-white transition-colors">Coaching Modes</a></li>
+            <li><a href="#modes" class="text-sm text-text-gray hover:text-white transition-colors">Coaching Modes</a>
+            </li>
             <li><a href="#pricing" class="text-sm text-text-gray hover:text-white transition-colors">Pricing</a></li>
           </ul>
         </div>
-        
+
         <div>
           <h4 class="text-white font-medium mb-4">Resources</h4>
           <ul class="space-y-3">
-            <li><a href="https://github.com/varunanand2006/LeetCoach" class="text-sm text-text-gray hover:text-white transition-colors">GitHub</a></li>
-            <li><a href="./privacy.html" class="text-sm text-text-gray hover:text-white transition-colors">Privacy Policy</a></li>
-            <li><a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" class="text-sm text-text-gray hover:text-white transition-colors">Chrome Extension</a></li>
+            <li><a href="https://github.com/varunanand2006/LeetCoach"
+                class="text-sm text-text-gray hover:text-white transition-colors">GitHub</a></li>
+            <li><a href="./privacy.html" class="text-sm text-text-gray hover:text-white transition-colors">Privacy
+                Policy</a></li>
+            <li><a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj"
+                class="text-sm text-text-gray hover:text-white transition-colors">Chrome Extension</a></li>
           </ul>
         </div>
       </div>
-      
+
       <div class="border-t border-border-color pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p class="text-sm text-text-gray">© 2024 LeetCoach. Built for the Flow State.</p>
+        <p class="text-sm text-text-gray">© 2025 LeetCoach. Built for the Flow State.</p>
         <div class="flex items-center gap-4 text-text-gray">
           <!-- Social icons could go here -->
         </div>
@@ -479,4 +660,5 @@
     </div>
   </footer>
 </body>
+
 </html>

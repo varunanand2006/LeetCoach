@@ -110,8 +110,19 @@ interface for code feedback, hints, and DSA guidance.
 - Per-mode prompts no longer repeat "no preamble" / "be confident" / "be concise" — `RESPONSE_STYLE` owns those. Re-adding them to a builder reintroduces the drift the block exists to prevent
 - `usage` mode: reads DynamoDB, streams `{weeklyRequests, purchasedCredits, weekStartDate}` as JSON — does NOT count against limit
 - `check_and_update_usage(user_id, cost=1)`: called before every Bedrock call; `cost` is 2 for diagram requests. **Returns which balance was charged**, not a bool: `BUCKET_FREE` / `BUCKET_PAID` when allowed, `BUCKET_NONE` when allowed without charging (unauthenticated, or failing open on a DynamoDB error), `None` when out of prompts. The caller must pass that value to `refund_usage`. The free bucket covers the request iff `weeklyRequests <= WEEKLY_LIMIT - cost` — the threshold is precomputed in Python because DynamoDB can't do arithmetic inside a `ConditionExpression`. Always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday; the `ConditionExpression` makes the limit check + increment atomic (eliminates TOCTOU race on concurrent requests)
-- `WEEKLY_LIMIT = 100` (named constant, easy to change)
+- `WEEKLY_LIMIT = 50` (named constant). **Mirrored in `src/state.js`** — a mismatch shows the user a balance the server disagrees with. `backend/tests/test_usage_buckets.py` derives every threshold from it, so the suite still means something after a change; verified passing at 25/50/200. Also hardcoded as placeholder text in `sidepanel.html` and stated in `docs/privacy.html`
 - `refund_usage(user_id, cost, bucket)`: usage is debited *before* Bedrock runs, so any failure after that point would silently cost the user (5 of 100 for a review). The Bedrock call is wrapped and refunds on exception. `bucket` decides which balance is credited — refunding a purchased credit into `weeklyRequests` would destroy it at the next reset, and refunding a free prompt into `purchasedCredits` would hand out paid credit for nothing. `BUCKET_NONE` is a no-op because no charge landed. A `ConditionExpression` stops either counter going negative. **It cannot cover a Lambda timeout** — that kills the process outright, which is why `Timeout` is 60s (a review is 1200 max_tokens on Sonnet) rather than the original 30s
+
+## Prompt Packs
+| Pack | Price | Prompts | $/prompt | Stripe fee | Net | Bedrock cost | Profit |
+|---|---|---|---|---|---|---|---|
+| `mini` | $0.99 | 50 | $0.0198 | $0.33 (33%) | $0.66 | $0.19 | $0.47 |
+| `small` | $4.99 | 500 | $0.0100 | $0.44 (9%) | $4.55 | $1.90 | $2.65 |
+| `large` | $9.99 | 1500 | $0.0067 | $0.59 (6%) | $9.40 | $5.70 | $3.70 |
+
+- Defined in **three** places that must agree: `CHECKOUT_PACKS` (price, chat Lambda), `PACKS` (price + credits, webhook), `PROMPT_PACKS` (display, `src/state.js`). The webhook cross-checks the collected amount, so price drift fails purchases loudly instead of granting wrong
+- `backend/tests/test_checkout.py` iterates the tables rather than hardcoding, so **a new pack automatically gets** the cross-package price check and an end-to-end grant/refund round-trip
+- **`mini` is priced for conversion, not margin.** Stripe's $0.30 fixed fee takes a third of it. It exists to make the first purchase trivial and to anchor `small` as visibly better value. The risk is cannibalisation: a buyer moving from `small` to `mini` costs $2.16 of profit, so it needs ~4.5 incremental buyers per switcher to pay off
 
 ## Purchased Prompts (two-balance spend)
 - Free weekly allowance and purchased credits are **separate DynamoDB attributes** (`weeklyRequests` and `purchasedCredits`). This is not a style choice: `check_and_update_usage` resets `weeklyRequests` outright on a Monday rollover, so credits kept in that field would be destroyed by the first reset after purchase
@@ -155,7 +166,7 @@ interface for code feedback, hints, and DSA guidance.
 
 ## Stripe Checkout (`create_checkout_session` mode)
 - Sits **above the usage check** alongside `usage` mode — buying prompts must never cost a prompt, and no Bedrock call is involved
-- Body is `{mode: 'create_checkout_session', pack: 'small'|'large'}`. `client_reference_id` is set from the **verified Google token**, never from the body
+- Body is `{mode: 'create_checkout_session', pack: 'mini'|'small'|'large'}`. `client_reference_id` is set from the **verified Google token**, never from the body
 - Prices are sent inline as `price_data`, not as pre-created Price IDs — nothing to configure in the Stripe dashboard and no ID to keep in sync
 - `payment_intent_data[metadata]` carries `userId` and `pack` onto the Charge. **Refund and dispute events carry a charge, not a session**, so without this the webhook cannot work out whose credits to claw back
 - **`CHECKOUT_PACKS[*]['amountCents']` here must equal `PACKS[*]['amountCents']` in `payments/app.py`.** They're in separate deployment packages and can't import each other; the webhook cross-checks the collected amount and refuses to grant on a mismatch, so drift fails purchases loudly rather than granting wrong. `backend/tests/test_checkout.py` asserts the two tables agree and round-trips a created session through `handle_grant`

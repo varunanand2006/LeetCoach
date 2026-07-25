@@ -81,6 +81,7 @@ import lambda_function as L
 L.ClientError = CCF
 
 FREE, PAID, NONE = L.BUCKET_FREE, L.BUCKET_PAID, L.BUCKET_NONE
+LIMIT = L.WEEKLY_LIMIT
 MON = L.get_week_start()
 results = []
 
@@ -111,14 +112,14 @@ check('  weekly incremented', t.item['weeklyRequests'], 11)
 check('  credits untouched', 'purchasedCredits' in t.item, False)
 
 # 2. Free exhausted, no credits -> denied
-t = with_table(row(weeklyRequests=100))
+t = with_table(row(weeklyRequests=LIMIT))
 check('exhausted + no credits -> None', L.check_and_update_usage('u', 1), None)
 
 # 3. Free exhausted, credits available -> PAID
-t = with_table(row(weeklyRequests=100, purchasedCredits=50))
+t = with_table(row(weeklyRequests=LIMIT, purchasedCredits=50))
 check('exhausted + credits -> PAID', L.check_and_update_usage('u', 1), PAID)
 check('  credit debited', t.item['purchasedCredits'], 49)
-check('  weekly NOT incremented', t.item['weeklyRequests'], 100)
+check('  weekly NOT incremented', t.item['weeklyRequests'], LIMIT)
 
 # 4. Free tier is spent before credits even when credits exist
 t = with_table(row(weeklyRequests=10, purchasedCredits=50))
@@ -126,24 +127,24 @@ check('free spent before credits', L.check_and_update_usage('u', 1), FREE)
 check('  credits still 50', t.item['purchasedCredits'], 50)
 
 # 5. Review (cost 5) that does not fit the weekly remainder falls to credits whole
-t = with_table(row(weeklyRequests=98, purchasedCredits=50))
-check('cost 5 over remainder -> PAID', L.check_and_update_usage('u', 5), PAID)
+t = with_table(row(weeklyRequests=LIMIT - 2, purchasedCredits=50))
+check(f'cost 5 with only 2 free left (limit {LIMIT}) -> PAID', L.check_and_update_usage('u', 5), PAID)
 check('  credits -5', t.item['purchasedCredits'], 45)
-check('  weekly unchanged (no split)', t.item['weeklyRequests'], 98)
+check('  weekly unchanged (no split)', t.item['weeklyRequests'], LIMIT - 2)
 
 # 6. Cost 5 with only 4 credits -> denied, nothing moves
-t = with_table(row(weeklyRequests=100, purchasedCredits=4))
+t = with_table(row(weeklyRequests=LIMIT, purchasedCredits=4))
 check('cost 5 vs 4 credits -> None', L.check_and_update_usage('u', 5), None)
 check('  credits untouched', t.item['purchasedCredits'], 4)
 
 # 7. Diagram (cost 2) exactly covered by 2 credits
-t = with_table(row(weeklyRequests=100, purchasedCredits=2))
+t = with_table(row(weeklyRequests=LIMIT, purchasedCredits=2))
 check('cost 2 vs exactly 2 credits -> PAID', L.check_and_update_usage('u', 2), PAID)
 check('  credits now 0', t.item['purchasedCredits'], 0)
 
 # 8. THE REGRESSION THIS WHOLE DESIGN EXISTS FOR:
 #    Monday rollover must not destroy purchased credits.
-t = with_table(row(weeklyRequests=100, purchasedCredits=40, weekStartDate='2000-01-03'))
+t = with_table(row(weeklyRequests=LIMIT, purchasedCredits=40, weekStartDate='2000-01-03'))
 check('new week -> FREE', L.check_and_update_usage('u', 1), FREE)
 check('  weekly reset to cost', t.item['weeklyRequests'], 1)
 check('  CREDITS SURVIVED RESET', t.item['purchasedCredits'], 40)
@@ -179,11 +180,11 @@ L.refund_usage('u', 5, FREE)
 check('FREE refund -> weekly back', t.item['weeklyRequests'], 5)
 check('  credits untouched by free refund', t.item['purchasedCredits'], 50)
 
-t = with_table(row(weeklyRequests=100, totalRequests=100, purchasedCredits=45))
+t = with_table(row(weeklyRequests=LIMIT, totalRequests=LIMIT, purchasedCredits=45))
 L.refund_usage('u', 5, PAID)
 check('PAID refund -> credits back', t.item['purchasedCredits'], 50)
-check('  weekly untouched by paid refund', t.item['weeklyRequests'], 100)
-check('  totalRequests decremented', t.item['totalRequests'], 95)
+check('  weekly untouched by paid refund', t.item['weeklyRequests'], LIMIT)
+check('  totalRequests decremented', t.item['totalRequests'], LIMIT - 5)
 
 t = with_table(row(weeklyRequests=10, totalRequests=10, purchasedCredits=50))
 L.refund_usage('u', 5, NONE)
@@ -197,7 +198,7 @@ check('refund cannot drive weekly negative', t.item['weeklyRequests'], 2)
 # Round trip: charge then refund restores the exact starting state
 for label, start, cost in [
     ('free', row(weeklyRequests=10, totalRequests=10, purchasedCredits=7), 2),
-    ('paid', row(weeklyRequests=100, totalRequests=100, purchasedCredits=7), 5),
+    ('paid', row(weeklyRequests=LIMIT, totalRequests=LIMIT, purchasedCredits=7), 5),
 ]:
     t = with_table(start)
     before = dict(t.item)

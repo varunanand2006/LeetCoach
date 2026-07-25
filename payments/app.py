@@ -47,6 +47,10 @@ LEDGER_TTL_DAYS = 400
 # then cannot over-grant. amountCents is cross-checked against what Stripe
 # actually collected.
 PACKS = {
+    # `mini` is priced for impulse, not margin — Stripe's $0.30 fixed fee eats
+    # a third of it. It exists to make a first purchase easy and to anchor the
+    # others: at $0.0198/prompt it makes `small` read as visibly better value.
+    'mini': {'credits': 50, 'amountCents': 99, 'currency': 'usd'},
     'small': {'credits': 500, 'amountCents': 499, 'currency': 'usd'},
     'large': {'credits': 1500, 'amountCents': 999, 'currency': 'usd'},
 }

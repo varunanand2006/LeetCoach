@@ -10,7 +10,7 @@ from botocore.exceptions import ClientError
 bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
-WEEKLY_LIMIT = 100
+WEEKLY_LIMIT = 50
 
 # Which balance a request was charged to. Purchased credits live in their own
 # attribute rather than offsetting weeklyRequests, because the Monday reset
@@ -53,6 +53,7 @@ CHECKOUT_CANCEL_URL = os.environ.get(
 # drift, purchases fail loudly rather than granting the wrong number of credits.
 # Credit counts deliberately live only in the webhook — it is what moves them.
 CHECKOUT_PACKS = {
+    'mini': {'amountCents': 99, 'label': '50 prompts'},
     'small': {'amountCents': 499, 'label': '500 prompts'},
     'large': {'amountCents': 999, 'label': '1,500 prompts'},
 }

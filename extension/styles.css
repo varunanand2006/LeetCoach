@@ -299,6 +299,7 @@ html, body {
    modal: it needs room to state what you get and what it costs, and the panel
    is too narrow for an overlay. */
 .message.buy-card {
+  position: relative;
   align-self: stretch;
   max-width: 100%;
   background: #1a1a1a;
@@ -308,10 +309,32 @@ html, body {
   white-space: normal;
 }
 
+.buy-card-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: #7a7a7a;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.buy-card-close:hover { background: #2a2a2a; color: #e6e6e6; }
+
 .buy-card-title {
   font-size: 13px;
   font-weight: 600;
   color: #e6e6e6;
+  /* Clear of the close button. */
+  padding-right: 22px;
   margin-bottom: 3px;
 }
 
@@ -364,14 +387,15 @@ html, body {
 #usage-indicator, .icon-btn {
   position: relative;
   flex-shrink: 0;
-  color: #666;
+  color: #9a9a9a;
   font-size: 14px;
   display: flex;
   align-items: center;
   padding: 4px;
   transition: opacity 0.15s, filter 0.15s;
-  opacity: 0.35;
-  filter: grayscale(100%);
+  /* Was 0.35 + full greyscale, which read as disabled rather than idle. */
+  opacity: 0.72;
+  filter: grayscale(55%);
   background: transparent;
   border: none;
 }
@@ -379,12 +403,21 @@ html, body {
 #usage-indicator { cursor: default; }
 .icon-btn {
   cursor: pointer;
-  border: 1px solid #333;
+  border: 1px solid #3f3f3f;
   border-radius: 6px;
   padding: 4px 6px;
   transition: opacity 0.15s, filter 0.15s, border-color 0.15s, color 0.15s;
 }
-.icon-btn:hover { border-color: #4a4a4a; }
+.icon-btn:hover { border-color: #5a5a5a; }
+
+/* The hamburger is the only way into every setting, so it sits brighter than
+   its neighbours even at rest — it should read as the affordance it is. */
+#settings-toggle {
+  opacity: 0.92;
+  filter: grayscale(0%);
+  color: #c8c8c8;
+  border-color: #4a4a4a;
+}
 
 #usage-indicator:hover, .icon-btn:hover {
   opacity: 1;

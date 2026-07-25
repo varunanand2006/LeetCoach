@@ -259,6 +259,16 @@ export function showBuyCard(onPick) {
   chatEl.querySelector('.message.buy-card')?.remove();
 
   const card = createMessageBubble('buy-card');
+
+  // Dismissable: it opens from a menu click rather than a user question, so
+  // without this the only way to clear it is closing the whole side panel.
+  const close = document.createElement('button');
+  close.className = 'buy-card-close';
+  close.type = 'button';
+  close.setAttribute('aria-label', 'Close');
+  close.textContent = '×';
+  close.addEventListener('click', () => card.remove());
+
   const title = document.createElement('div');
   title.className = 'buy-card-title';
   title.textContent = 'Buy more prompts';
@@ -266,7 +276,7 @@ export function showBuyCard(onPick) {
   sub.className = 'buy-card-sub';
   sub.textContent = 'Purchased prompts never expire and are used only once your '
     + 'weekly allowance runs out.';
-  card.append(title, sub);
+  card.append(close, title, sub);
 
   for (const pack of PROMPT_PACKS) {
     const btn = document.createElement('button');
