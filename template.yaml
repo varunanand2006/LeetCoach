@@ -159,14 +159,14 @@ Resources:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
         Cors:
-          # Scoped to the published extension. The id is deterministic because
-          # manifest.json pins a `key`, so it survives updates and reinstalls.
-          # host_permissions does NOT cover this URL, so panel requests are true
-          # cross-origin calls and this header is what the browser enforces.
-          # Requests still need a valid Google token; this stops an arbitrary
-          # site burning a user's quota — which now includes prompts they paid for.
+          # Must stay '*'. Lambda Function URL CORS only accepts http/https
+          # origins or the wildcard — `chrome-extension://<id>` is rejected at
+          # deploy time with "isn't a valid origin". Origin filtering therefore
+          # lives in the handler (`_origin_allowed`), which can inspect the
+          # header directly. Verified: deploying a chrome-extension:// origin
+          # fails with Lambda 400 InvalidRequest.
           AllowOrigins:
-            - 'chrome-extension://mphhiilfiepjpipajkgoehmoncilcmfj'
+            - '*'
           AllowHeaders:
             - 'Content-Type'
             - 'Authorization'

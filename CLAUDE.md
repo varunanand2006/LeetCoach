@@ -345,7 +345,7 @@ Test and live mode are **entirely separate accounts** inside Stripe — separate
 - [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings
 
-### CORS (resolved)
-- `AllowOrigins` is now `chrome-extension://mphhiilfiepjpipajkgoehmoncilcmfj`, not `'*'`
-- The id is **deterministic** because `manifest.json` pins a `key` — derived as base16→a-p of `sha256(DER(key))[:16]`, verified to match the store listing, and stable across updates and reinstalls
-- `host_permissions` does **not** cover the Lambda URL, so side-panel calls are genuine cross-origin requests and this header is what the browser enforces. **Any change here must be verified with a live request before publishing** — if the origin doesn't match, every request fails with an opaque CORS error
+### Cross-origin access
+- **`AllowOrigins` must stay `'*'`.** Lambda Function URL CORS only accepts http/https origins or the wildcard; `chrome-extension://<id>` is rejected at deploy time with `"isn't a valid origin" (Lambda 400 InvalidRequest)`. Tried 2026-07-25, failed the stack update, rolled back cleanly. Do not attempt again
+- Filtering therefore lives in `_origin_allowed()` in the handler, which rejects any request carrying an **http(s) Origin** — a browser sets that header itself and page JS cannot forge it, so an http(s) origin means a web page is calling and none should be. `chrome-extension://` and absent Origin are both allowed, so it cannot break the panel if Chrome changes what it sends
+- **CORS was never the real control here.** Every request needs a Google token whose `aud` matches the extension's client id, which a web page cannot mint; and an attacker holding a stolen token would call from a server, where CORS does not apply. The origin check is defence in depth, not the boundary

@@ -1048,9 +1048,37 @@ def refund_usage(user_id, cost, bucket=BUCKET_FREE):
 # Handler
 # ---------------------------------------------------------------------------
 
+def _origin_allowed(headers):
+    """Reject calls that arrive with a website Origin.
+
+    Lambda Function URL CORS cannot express this: it only accepts http/https
+    origins or '*', and rejects `chrome-extension://<id>` at deploy time with
+    "isn't a valid origin". So the filter lives here, where the raw header is
+    readable.
+
+    The rule is deliberately permissive — block only what is definitely wrong.
+    A browser sets Origin itself and page JavaScript cannot forge it, so any
+    http(s) Origin means a web page is calling, and no web page should be. The
+    extension sends either its own chrome-extension:// origin or none at all,
+    and both are allowed, so this cannot break the panel if Chrome changes what
+    it sends. Non-browser callers still need a valid Google token.
+    """
+    origin = (headers or {}).get('origin') or (headers or {}).get('Origin') or ''
+    return not origin.strip().lower().startswith(('http://', 'https://'))
+
+
 def handler(event, context):
     try:
         headers = event.get('headers') or {}
+
+        if not _origin_allowed(headers):
+            print(f"Rejected cross-site request from origin: {headers.get('origin')!r}")
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'error': 'unauthorized',
+                'message': 'This endpoint is only callable from the LeetCoach extension.',
+            })]))
+            return
+
         auth_header = headers.get('authorization', headers.get('Authorization', ''))
         if not auth_header.lower().startswith('bearer '):
             _stream_to_runtime(context.aws_request_id, iter([json.dumps({
