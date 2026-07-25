@@ -16,6 +16,13 @@ export function setCoachingMode(mode) { coachingMode = mode; }
 export let weeklyRequestsUsed = 0;
 export function setWeeklyRequestsUsed(count) { weeklyRequestsUsed = count; }
 
+/** Cost in prompts of a request that also produces a diagram. Mirrors DIAGRAM_COST in the Lambda. */
+export const DIAGRAM_COST = 2;
+
+/** One-shot arm: set by the header toggle, cleared as soon as a request fires. */
+export let diagramArmed = false;
+export function setDiagramArmed(on) { diagramArmed = on; }
+
 export function getTabState(tabId) {
   if (!tabId) return { history: [], slug: null, domSnapshot: null, hintLevel: 1, baseContext: null };
   if (!tabHistories.has(tabId)) {

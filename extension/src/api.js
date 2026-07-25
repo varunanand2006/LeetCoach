@@ -1,8 +1,9 @@
 // api.js - Network requests and API communication
 
-import { API_URL, getThisMonday, setWeeklyRequestsUsed, weeklyRequestsUsed } from './state.js';
+import { API_URL, getThisMonday, setWeeklyRequestsUsed, weeklyRequestsUsed, DIAGRAM_COST } from './state.js';
 import { updateUsageIndicator, showLimitWarning, scrollToBottom } from './ui.js';
 import { renderMarkdown } from './markdown.js';
+import { renderDiagramsIn } from './diagram.js';
 
 function getAuthToken(interactive = false) {
   return new Promise((resolve, reject) => {
@@ -41,8 +42,8 @@ export async function fetchUsageFromServer(userId) {
   } catch (_e) { /* fail silently — local count remains */ }
 }
 
-export async function incrementUsage() {
-  const newCount = weeklyRequestsUsed + 1;
+export async function incrementUsage(cost = 1) {
+  const newCount = weeklyRequestsUsed + cost;
   setWeeklyRequestsUsed(newCount);
   await chrome.storage.local.set({ weeklyRequests: newCount });
   updateUsageIndicator();
@@ -93,12 +94,22 @@ export async function streamResponse(body, assistantBubble, onSuccess) {
       const parsed = JSON.parse(assistantText);
       if (parsed.error === 'weekly_limit_reached') {
         assistantBubble.remove();
-        showLimitWarning();
+        showLimitWarning(parsed.message);
         return;
       }
     } catch (_e) { /* normal text response */ }
 
-    incrementUsage();
+    // Diagrams can only be drawn now — partial mermaid syntax never parses.
+    // A render failure degrades to a code block and must not fail the request,
+    // which the user has already been charged for.
+    try {
+      await renderDiagramsIn(assistantBubble);
+      scrollToBottom();
+    } catch (e) {
+      console.warn('[LeetCoach] diagram pass failed:', e);
+    }
+
+    incrementUsage(body.wantsDiagram ? DIAGRAM_COST : 1);
     onSuccess(assistantText);
   } catch (err) {
     assistantBubble.textContent = `Error: ${err.message || 'Failed to generate response. Please sign in.'}`;

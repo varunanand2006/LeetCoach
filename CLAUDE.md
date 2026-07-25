@@ -38,28 +38,62 @@ interface for code feedback, hints, and DSA guidance.
 - `manifest.json` — permissions, content scripts, side panel config, keyboard shortcut
 - `background.js` — side panel enable/disable logic, keyboard shortcut handler
 - `content.js` — reads LeetCode DOM (title, number, difficulty, tags, description, language); does NOT read Monaco code
-- `sidepanel.html` — side panel UI markup + all CSS (dark theme, mode buttons, spinner, markdown styles)
-- `sidepanel.js` — chat logic, per-tab state, Monaco code reading (MAIN world), submission result reading, Lambda fetch, markdown rendering, usage tracking (local via `chrome.storage.local` + server sync via `usage` mode on init); typing `clear`, `reset`, `clear chat`, or `start over` clears the chat; usage tooltip shows prompts remaining + time until Monday reset
-- `prism.js` — bundled Prism.js for syntax highlighting in code fences
-- `prism-theme.css` — dark Prism theme matching the sidebar palette
+- `sidepanel.html` — side panel UI markup (header, chat area, mode bar)
+- `styles.css` — all CSS (dark theme, mode buttons, spinner, markdown, usage ring, diagrams)
+- `src/index.js` — entry point and orchestrator: event wiring, per-tab state, navigation detection, request building
+- `src/state.js` — centralized state (per-tab history, coaching mode, usage count, diagram arm flag, storage helpers)
+- `src/ui.js` — DOM refs and rendering (usage ring, coaching toggle, diagram toggle, swappable third mode button)
+- `src/api.js` — Lambda fetch, streaming, Google auth token, usage increment
+- `src/markdown.js` — markdown → HTML with Prism highlighting; turns ```mermaid fences into placeholder divs
+- `src/diagram.js` — lazy Mermaid import and SVG rendering, click-to-expand overlay, failure fallback
+- `src/scraper.js` — Monaco/CM6 code reading and submission result reading (MAIN world)
+- `vendor/prism.js` / `vendor/prism-theme.css` — bundled Prism.js + dark theme matching the sidebar palette
+- `vendor/mermaid/` — 35-file traced subset of mermaid@11 ESM (~1MB)
+
+## Diagrams
+- Opt-in per request: the ✨ toggle in the header **arms** a diagram for the next request, then disarms itself (one-shot, deliberately not persisted so a reload can't silently double-charge)
+- Costs 2 prompts instead of 1 (`DIAGRAM_COST`, mirrored in `state.js` and `lambda_function.py`)
+- Sent as a `wantsDiagram` boolean on the body, NOT a separate mode — it composes with chat/hint/analyze/dsa/optimize/feedback
+- Armed state is loud: orange glow on the toggle, `· 2` suffix on the mode buttons, and a changed input placeholder
+- Toggle greys out and refuses to arm when fewer than 2 prompts remain
+- Backend appends a diagram section to whichever system prompt was built and adds `DIAGRAM_TOKEN_BONUS` (400) tokens
+- Diagram requests always route to Sonnet, even for hint/dsa — Mermaid syntax errors waste a paid request
+- Detail is tuned by coaching mode: fully labeled in Learn, sparse in Practice, skeletal in Interview
+- **Only four diagram types are vendored**: flowchart, sequenceDiagram, stateDiagram-v2, classDiagram. mindmap/architecture were excluded on purpose — they pull in cytoscape, which needs `eval` and would violate the MV3 CSP (`script-src 'self'`). `diagram.js` rejects unsupported types before calling mermaid
+- Rendering happens only after the stream closes (partial Mermaid never parses). An unterminated fence shows a "Drawing diagram…" placeholder
+- Render failures degrade to the raw source as a code block, never retried — a retry would silently charge another 2 prompts
+- Mermaid source is stored in history, so diagrams redraw on reload/tab switch
+- To re-vendor after a mermaid upgrade: `npm pack mermaid@11`, then walk the ESM graph from `mermaid.esm.min.mjs` following all static imports plus dynamic imports matching the four allowed types, and copy only the reachable files
 
 ## Backend
 - Single handler in lambda_function.py
-- Receives: `{ mode, message, problem, code, language, history, hintLevel, submissionResult, userId }`
-  - `mode`: `"chat"` | `"hint"` | `"analyze"` | `"dsa"` | `"usage"`
+- Receives: `{ mode, message, problem, code, language, history, hintLevel, submissionResult, userId, coachingMode, slug, wantsDiagram }`
+  - `mode`: `"chat"` | `"hint"` | `"analyze"` | `"dsa"` | `"optimize"` | `"feedback"` | `"usage"`
   - `problem`: `{ difficulty, tags, description }` (name/number/slug intentionally omitted)
   - `hintLevel`: 1–3 (hint mode only)
   - `submissionResult`: `{ status, input, expected, actual, message }` or null
-  - `history`: last 10 turns (chat only — analyze/hint/dsa send no history)
-  - `userId`: LeetCode username (may be null — always fail open if missing)
+  - `history`: last 10 turns (chat only — the button modes send no history)
+  - `userId`: overwritten server-side from the verified Google token; never trusted from the body
+  - `coachingMode`: `"learn"` | `"practice"` | `"interview"`
+  - `wantsDiagram`: bool — costs 2 prompts and appends a Mermaid diagram request
 - Returns: streamed plain text via chunked transfer encoding to Lambda Runtime API
-- Model routing: hint + dsa → `us.anthropic.claude-haiku-4-5-20251001-v1:0`; analyze + chat → `us.anthropic.claude-sonnet-4-6` (the `us.` prefix enables cross-region inference routing)
+- Model routing: hint + dsa → `us.anthropic.claude-haiku-4-5-20251001-v1:0`; everything else → `us.anthropic.claude-sonnet-4-6` (the `us.` prefix enables cross-region inference routing). Any request with `wantsDiagram` overrides to Sonnet
 - Model IDs overridable via `HAIKU_MODEL_ID` / `SONNET_MODEL_ID` Lambda env vars — update these when Anthropic deprecates a version, no code change needed
-- Token budgets: hint 64, dsa 128, analyze 256, chat 256
+- Token budgets: hint 128, dsa 256, optimize 400, analyze 512, feedback 512, chat 512; `+400` when `wantsDiagram`
 - `usage` mode: reads DynamoDB, streams `{weeklyRequests, weekStartDate}` as JSON — does NOT count against limit
-- `check_and_update_usage(user_id)`: called before every Bedrock call; returns False if weeklyRequests >= WEEKLY_LIMIT; always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday; uses `ConditionExpression` to make the limit check + increment atomic (eliminates TOCTOU race on concurrent requests)
+- `check_and_update_usage(user_id, cost=1)`: called before every Bedrock call; `cost` is 2 for diagram requests. Allows the request iff `weeklyRequests <= WEEKLY_LIMIT - cost` — the threshold is precomputed in Python because DynamoDB can't do arithmetic inside a `ConditionExpression`. Always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday; the `ConditionExpression` makes the limit check + increment atomic (eliminates TOCTOU race on concurrent requests)
 - `WEEKLY_LIMIT = 100` (named constant, easy to change)
-- `validate_and_sanitize_body()`: called on every request before processing; truncates oversized fields (code: 10KB, description: 5KB, message: 2KB), limits history to last 10 turns, clamps hintLevel to 1–3, validates userId against `^[a-zA-Z0-9_\-\.]{1,50}$` (sets to null if invalid)
+- `validate_and_sanitize_body()`: called on every request before processing; truncates oversized fields (code: 10KB, description: 5KB, message: 2KB), limits history to last 10 turns, clamps hintLevel to 1–3, coerces `wantsDiagram` to a strict bool, validates userId against `^[a-zA-Z0-9_\-\.]{1,50}$` (sets to null if invalid)
+
+## Coaching Modes and Code Disclosure
+- `CODE_POLICY` in lambda_function.py is a single dict appended to **every** mode's system prompt, so the policy can't drift between prompt builders. Ordered by permissiveness: learn > practice > interview
+  - **learn** — may show a single line, the one key operation, or a skeleton with `___` / `# TODO` blanks. Never a complete or runnable solution
+  - **practice** — defaults to no code; a snippet of ≤3 lines is allowed only when it genuinely clarifies
+  - **interview** — no code at all, not even pseudocode. Words only
+- The third mode button swaps with the coaching mode (`THIRD_BUTTON` in `src/ui.js`, `data-mode` on `#btn-third`):
+  - learn → **DSA Tips** (`dsa`)
+  - practice → **Optimize** (`optimize`) — Big-O time/space of the current code, the optimal bound, and the technique that closes the gap (without implementing it)
+  - interview → **Feedback** (`feedback`) — in-character end-of-interview debrief covering approach, code quality, complexity, and the one thing to do differently
 
 ## DynamoDB
 - Table: `leetcoach-users`, partition key: `userId` (String), PAY_PER_REQUEST
@@ -106,6 +140,11 @@ interface for code feedback, hints, and DSA guidance.
 - After Lambda changes: `sam build --use-container && sam deploy`
 - After extension changes: refresh extension in chrome://extensions, reload LeetCode tab
 - New extension version: bump `version` in `manifest.json`, zip `extension/` contents (not the folder itself) using `Compress-Archive -Path extension\* -DestinationPath leetcoach-x.x.x.zip` in PowerShell, upload to Chrome Web Store
+- Reset usage for a user (PowerShell — escape inner quotes with backslash):
+  ```
+  aws dynamodb update-item --table-name leetcoach-users --region us-east-1 --no-verify-ssl --key '{\"userId\": {\"S\": \"<userId>\"}}' --update-expression "SET weeklyRequests = :zero" --expression-attribute-values '{\":zero\": {\"N\": \"0\"}}'
+  ```
+  Owner's userId: `118260042345896138064`
 
 ## Current Status
 - [x] Project structure created
@@ -130,6 +169,11 @@ interface for code feedback, hints, and DSA guidance.
 - [x] Extension update published (v1.1.0)
 - [x] Landing page (docs/index.html, GitHub Pages)
 - [x] Demo video (docs/demo.mp4)
+- [x] Mermaid diagrams, opt-in via header toggle at 2 prompts each (v1.2.0)
+- [x] Usage indicator changed from ✨ to a circular meter ring; ✨ reused for the diagram toggle
+- [x] `optimize` and `feedback` modes replacing DSA Tips in Practice/Interview (v1.2.0)
+- [x] `CODE_POLICY` tightening code disclosure across all modes (v1.2.0)
+- [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings
 
 ### Over-privileged CORS Configuration

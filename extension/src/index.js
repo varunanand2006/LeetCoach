@@ -3,16 +3,18 @@
 import {
   getTabState, setActiveTabId, activeTabId, coachingMode, setCoachingMode,
   setWeeklyRequestsUsed, getThisMonday, CLEAR_PHRASES, deleteTabState,
-  saveProblemState, loadProblemState, clearProblemState
+  saveProblemState, loadProblemState, clearProblemState,
+  diagramArmed, setDiagramArmed, DIAGRAM_COST
 } from './state.js';
-import { 
-  initDOMElements, updateUsageIndicator, updateHeader, scrollToBottom, 
-  setInputEnabled, syncHintBadge, syncCoachingToggle, removeEmptyState, 
-  addEmptyState, createMessageBubble, appendMessage,
-  chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnDsa, coachingToggleEl
+import {
+  initDOMElements, updateUsageIndicator, updateHeader, scrollToBottom,
+  setInputEnabled, syncHintBadge, syncCoachingToggle, removeEmptyState,
+  addEmptyState, createMessageBubble, appendMessage, syncDiagramToggle, remainingPrompts,
+  chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnThird, coachingToggleEl, diagramToggleEl
 } from './ui.js';
 import { fetchUsageFromServer, streamResponse } from './api.js';
 import { renderMarkdown } from './markdown.js';
+import { renderDiagramsIn } from './diagram.js';
 import { getMonacoCode, getSubmissionResult } from './scraper.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -21,20 +23,29 @@ document.addEventListener('DOMContentLoaded', () => {
   loadUsageCount();
   setupNavigationDetection();
   syncCoachingToggle();
+  syncDiagramToggle();
 
   modeBtnHint.addEventListener('click', () => handleModeRequest('hint'));
   modeBtnAnalyze.addEventListener('click', () => handleModeRequest('analyze'));
-  modeBtnDsa.addEventListener('click', () => handleModeRequest('dsa'));
+  modeBtnThird.addEventListener('click', () => handleModeRequest(modeBtnThird.dataset.mode));
 
   coachingToggleEl.addEventListener('click', async () => {
     let newMode = 'learn';
     if (coachingMode === 'learn') newMode = 'practice';
     else if (coachingMode === 'practice') newMode = 'interview';
     else if (coachingMode === 'interview') newMode = 'learn';
-    
+
     setCoachingMode(newMode);
     await chrome.storage.local.set({ coachingMode: newMode });
     syncCoachingToggle();
+  });
+
+  // Diagram arming is one-shot and deliberately not persisted — it should never
+  // survive a panel reload and silently double-charge a later request.
+  diagramToggleEl.addEventListener('click', () => {
+    if (!diagramArmed && remainingPrompts() < DIAGRAM_COST) return;
+    setDiagramArmed(!diagramArmed);
+    syncDiagramToggle();
   });
 
   chrome.storage.local.get('coachingMode').then(data => {
@@ -66,6 +77,8 @@ function renderHistoryToDOM(history) {
     }
     chatEl.appendChild(el);
   }
+  // Diagrams are stored as mermaid source in history, so redraw them on restore.
+  renderDiagramsIn(chatEl).then(scrollToBottom).catch(() => {});
   scrollToBottom();
 }
 
@@ -246,6 +259,11 @@ async function sendMessage(userText) {
     return;
   }
 
+  // Consume the one-shot arm up front so a slow request can't be double-fired.
+  const wantsDiagram = diagramArmed;
+  setDiagramArmed(false);
+  syncDiagramToggle();
+
   setInputEnabled(false);
   inputEl.value = '';
   inputEl.style.height = 'auto';
@@ -274,6 +292,7 @@ async function sendMessage(userText) {
     submissionResult: context?.submissionResult ?? null,
     userId: context?.userId ?? null,
     coachingMode,
+    wantsDiagram,
   };
 
   await streamResponse(body, assistantBubble, (assistantText) => {
@@ -291,12 +310,17 @@ async function sendMessage(userText) {
 }
 
 async function handleModeRequest(mode) {
+  // Consume the one-shot arm up front so a slow request can't be double-fired.
+  const wantsDiagram = diagramArmed;
+  setDiagramArmed(false);
+  syncDiagramToggle();
+
   setInputEnabled(false);
   removeEmptyState();
 
   const context = await fetchContext();
 
-  if (!context?.code && mode === 'analyze') {
+  if (!context?.code && (mode === 'analyze' || mode === 'optimize' || mode === 'feedback')) {
     const el = createMessageBubble('assistant');
     el.textContent = "No code detected in the editor. Write some code first, then try again.";
     chatEl.appendChild(el);
@@ -306,7 +330,13 @@ async function handleModeRequest(mode) {
     return;
   }
 
-  const labels = { hint: '[ Hint ]', analyze: '[ Analyze Code ]', dsa: '[ DSA Tips ]' };
+  const labels = {
+    hint: '[ Hint ]',
+    analyze: '[ Analyze Code ]',
+    dsa: '[ DSA Tips ]',
+    optimize: '[ Optimize ]',
+    feedback: '[ Feedback ]',
+  };
   appendMessage('user', labels[mode]);
 
   const assistantBubble = createMessageBubble('assistant');
@@ -329,6 +359,7 @@ async function handleModeRequest(mode) {
     submissionResult: context?.submissionResult ?? null,
     userId: context?.userId ?? null,
     coachingMode,
+    wantsDiagram,
   };
   if (mode === 'hint') body.hintLevel = hintLevel;
 

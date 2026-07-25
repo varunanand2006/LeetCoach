@@ -16,8 +16,15 @@
       <button id="coaching-toggle" class="coaching-toggle" data-tooltip="Learn mode&#10;Click to switch to Practice">
         <span id="coaching-icon">🎓</span>
       </button>
+      <button id="diagram-toggle" class="coaching-toggle" aria-pressed="false"
+              data-tooltip="Diagram off&#10;Click to add a diagram to your next reply&#10;Costs 2 prompts instead of 1">
+        <span id="diagram-icon">✨</span>
+      </button>
       <div id="usage-indicator" data-tooltip="100 prompts left">
-        ✨
+        <svg class="usage-ring" viewBox="0 0 24 24" aria-hidden="true">
+          <circle class="ring-track" cx="12" cy="12" r="9" />
+          <circle id="usage-ring-fill" class="ring-fill" cx="12" cy="12" r="9" />
+        </svg>
       </div>
     </div>
 
@@ -30,13 +37,14 @@
     <div id="input-row">
       <div id="mode-bar">
         <button id="btn-hint" class="mode-btn" title="Get a progressive hint">
-          <i class="gg-key"></i> Hint <span id="hint-level-badge">1</span>
+          <i class="gg-key"></i> <span class="mode-label">Hint</span> <span id="hint-level-badge">1</span>
         </button>
         <button id="btn-analyze" class="mode-btn" title="Analyze your current code">
-          <i class="gg-play-list-search"></i> Analyze
+          <i class="gg-play-list-search"></i> <span class="mode-label">Analyze</span>
         </button>
-        <button id="btn-dsa" class="mode-btn" title="Data structure &amp; algorithm tips">
-          <i class="gg-list-tree"></i> DSA Tips
+        <!-- Third button swaps with coaching mode: DSA Tips / Optimize / Feedback -->
+        <button id="btn-third" class="mode-btn" data-mode="dsa" title="Data structure &amp; algorithm tips">
+          <span class="mode-icon"></span> <span class="mode-label">DSA Tips</span>
         </button>
       </div>
       <textarea

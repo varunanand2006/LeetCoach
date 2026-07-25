@@ -272,6 +272,138 @@ html, body {
 }
 
 /* -------------------------------------------------------------------------
+   Usage ring
+------------------------------------------------------------------------- */
+
+/* The ring is a meter, so it stays readable at rest rather than greyed out. */
+#usage-indicator {
+  opacity: 0.6;
+  filter: none;
+}
+#usage-indicator:hover { opacity: 1; }
+
+.usage-ring {
+  width: 18px;
+  height: 18px;
+  transform: rotate(-90deg); /* start the fill at 12 o'clock */
+  overflow: visible;
+}
+.usage-ring .ring-track {
+  fill: none;
+  stroke: #3a3a3a;
+  stroke-width: 3;
+}
+.usage-ring .ring-fill {
+  fill: none;
+  stroke: #ffa116;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.4s ease, stroke 0.3s ease;
+}
+#usage-indicator.low .ring-fill   { stroke: #f97316; }
+#usage-indicator.empty .ring-fill { stroke: #ef4444; }
+
+/* -------------------------------------------------------------------------
+   Diagram toggle
+------------------------------------------------------------------------- */
+
+#diagram-toggle {
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+#diagram-toggle.armed {
+  opacity: 1;
+  filter: none;
+  background: rgba(255, 161, 22, 0.15);
+  box-shadow: 0 0 0 1px rgba(255, 161, 22, 0.55), 0 0 10px rgba(255, 161, 22, 0.3);
+}
+
+#diagram-toggle.unaffordable {
+  cursor: not-allowed;
+}
+#diagram-toggle.unaffordable,
+#diagram-toggle.unaffordable:hover {
+  filter: grayscale(100%);
+  opacity: 0.6;
+}
+
+/* -------------------------------------------------------------------------
+   Diagrams
+------------------------------------------------------------------------- */
+
+.mermaid-block {
+  margin: 8px 0;
+  background: #1e1e1e;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 8px;
+  overflow-x: auto;
+}
+
+.mermaid-block.pending {
+  color: #777;
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.diagram-shell {
+  cursor: zoom-in;
+  display: flex;
+  justify-content: center;
+}
+.diagram-shell svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.diagram-error {
+  color: #f97316;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.mermaid-block.failed pre { margin: 0; }
+
+.diagram-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(10, 10, 10, 0.93);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  cursor: zoom-out;
+  animation: diagramFadeIn 0.15s ease;
+}
+.diagram-overlay-inner {
+  width: 100%;
+  max-height: 100%;
+  overflow: auto;
+}
+.diagram-overlay-inner svg {
+  width: 100%;
+  height: auto;
+}
+
+@keyframes diagramFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Inline SVG icon in the swappable third mode button */
+.mode-btn .mode-icon {
+  display: inline-flex;
+  align-items: center;
+}
+.mode-btn .mode-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* -------------------------------------------------------------------------
    Spinner
 ------------------------------------------------------------------------- */
 

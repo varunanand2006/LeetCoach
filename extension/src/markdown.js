@@ -22,8 +22,19 @@ export function escapeHtml(str) {
 export function renderMarkdown(raw) {
   // Stash fenced code blocks
   const blocks = [];
-  let text = raw.replace(/```([\w]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+  let text = raw.replace(/```([\w-]*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const trimmed = code.trim();
+
+    // Mermaid becomes an inert placeholder — the SVG is drawn after the stream
+    // finishes, since partial diagram syntax always fails to parse.
+    if (lang.toLowerCase() === 'mermaid') {
+      const holder = document.createElement('div');
+      holder.className = 'mermaid-block';
+      holder.dataset.src = trimmed;
+      blocks.push(holder.outerHTML);
+      return `\x02B${blocks.length - 1}\x03`;
+    }
+
     const prismLang = LANG_MAP[lang.toLowerCase()] || lang;
     const grammar = typeof Prism !== 'undefined' && Prism.languages[prismLang];
     const highlighted = grammar
@@ -31,6 +42,13 @@ export function renderMarkdown(raw) {
       : escapeHtml(trimmed);
     const attr = lang ? ` data-lang="${lang}"` : '';
     blocks.push(`<pre${attr}><code class="language-${prismLang}">${highlighted}</code></pre>`);
+    return `\x02B${blocks.length - 1}\x03`;
+  });
+
+  // An unterminated mermaid fence means the diagram is still streaming in.
+  // Show a placeholder rather than a wall of raw syntax.
+  text = text.replace(/```mermaid\n?[\s\S]*$/, () => {
+    blocks.push('<div class="mermaid-block pending">Drawing diagram…</div>');
     return `\x02B${blocks.length - 1}\x03`;
   });
 

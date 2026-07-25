@@ -37,7 +37,10 @@ GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
 
 # Input validation limits
-VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'usage'}
+VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'optimize', 'feedback', 'usage'}
+# A diagram request costs 2 prompts against the weekly limit instead of 1.
+DIAGRAM_COST = 2
+DIAGRAM_TOKEN_BONUS = 400
 MAX_CODE_BYTES = 10_000
 MAX_DESC_BYTES = 5_000
 MAX_MSG_BYTES = 2_000
@@ -234,6 +237,8 @@ def validate_and_sanitize_body(body):
     cm = body.get('coachingMode', 'learn')
     body['coachingMode'] = cm if cm in ('learn', 'practice', 'interview') else 'learn'
 
+    body['wantsDiagram'] = body.get('wantsDiagram') is True
+
     slug = body.get('slug')
     if slug is not None and (not isinstance(slug, str) or not _SLUG_RE.match(slug)):
         body['slug'] = None
@@ -273,14 +278,86 @@ def format_submission_result(result):
     return f"\nLast submission: {status}\n"
 
 
+# How much code each coaching mode is allowed to hand over. Appended to every
+# mode's system prompt so the policy can't drift between builders.
+# Ordering by permissiveness: learn > practice > interview.
+CODE_POLICY = {
+    'learn': (
+        "Code policy: you may show a single line, the one key operation, or a skeleton with "
+        "`___` or `# TODO` blanks for the user to fill in. NEVER write a complete or runnable "
+        "solution, and never a full function body that solves the problem. The user writes the "
+        "solution — you fill gaps in their understanding, not gaps in their editor."
+    ),
+    'practice': (
+        "Code policy: default to no code. A snippet of 3 lines or fewer is allowed only when it "
+        "makes an explanation materially clearer than plain words would — not as a shortcut. "
+        "Never a full solution, never a complete function body."
+    ),
+    'interview': (
+        "Code policy: write no code at all — not a snippet, not a single line, not pseudocode. "
+        "A real interviewer does not type in the candidate's editor. Point at what to reconsider "
+        "using words only."
+    ),
+}
+
+ALLOWED_DIAGRAM_TYPES = 'flowchart, sequenceDiagram, stateDiagram-v2, classDiagram'
+
+DIAGRAM_DETAIL = {
+    'learn': (
+        "Label every node and edge fully — this is a teaching diagram, so someone should be able "
+        "to follow the idea from the picture alone."
+    ),
+    'practice': (
+        "Label nodes with structure and step names, but leave the reasoning on edges terse. "
+        "Show the shape of the approach, not a walkthrough of it."
+    ),
+    'interview': (
+        "Skeleton only — shapes and connections with minimal labels. The candidate should still "
+        "have to reason about what each node holds."
+    ),
+}
+
+
+def append_diagram_instruction(prompt, coaching_mode):
+    """Append the Mermaid diagram request to an already-built system prompt."""
+    return prompt + f"""
+DIAGRAM (required):
+After your normal answer, append exactly one Mermaid diagram in a ```mermaid fenced block that
+visualizes the core idea of what you just said.
+
+- Allowed diagram types ONLY: {ALLOWED_DIAGRAM_TYPES}. Never use any other type.
+- {DIAGRAM_DETAIL.get(coaching_mode, DIAGRAM_DETAIL['learn'])}
+- Keep it under 12 nodes. The panel is only ~400px wide, so prefer `flowchart TD` over `LR`.
+- In flowchart nodes ONLY, wrap the label in double quotes — A["left < right"] — because an
+  unquoted (), [], {{}}, or : inside a flowchart label breaks the parser. Do NOT add quotes
+  anywhere else: `participant Left`, `class Node`, and state names must stay unquoted, or the
+  quotes render literally.
+- No markdown, backticks, or HTML tags inside any label.
+- The diagram obeys the same code policy as the rest of your answer — it must not spell out a
+  complete solution the user hasn't reached yet.
+- Output the diagram once, at the very end, and write nothing after the closing fence.
+"""
+
+
 def build_prompt_for_mode(mode, body):
     if mode == 'hint':
-        return build_hint_prompt(body), 128
-    if mode == 'analyze':
-        return build_analyze_prompt(body), 512
-    if mode == 'dsa':
-        return build_dsa_prompt(body), 256
-    return build_chat_prompt(body), 512  # 'chat' or unknown
+        prompt, max_tokens = build_hint_prompt(body), 128
+    elif mode == 'analyze':
+        prompt, max_tokens = build_analyze_prompt(body), 512
+    elif mode == 'dsa':
+        prompt, max_tokens = build_dsa_prompt(body), 256
+    elif mode == 'optimize':
+        prompt, max_tokens = build_optimize_prompt(body), 400
+    elif mode == 'feedback':
+        prompt, max_tokens = build_feedback_prompt(body), 512
+    else:
+        prompt, max_tokens = build_chat_prompt(body), 512  # 'chat' or unknown
+
+    if body.get('wantsDiagram'):
+        prompt = append_diagram_instruction(prompt, body.get('coachingMode', 'learn'))
+        max_tokens += DIAGRAM_TOKEN_BONUS
+
+    return prompt, max_tokens
 
 
 def _build_preamble(body):
@@ -308,7 +385,7 @@ def build_hint_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            f"Coaching mode: LEARN. Freely name the data structure or algorithm, show a {language} syntax example if helpful, and explain why it fits."
+            "Coaching mode: LEARN. Name the data structure or algorithm and explain in one clause why it fits."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
@@ -316,8 +393,10 @@ def build_hint_prompt(body):
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. Minimal directional nudge only — no data structure names, no syntax, no explanations."
+            "Coaching mode: PRACTICE. Minimal directional nudge only — no data structure names, no explanations."
         )
+
+    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
 
     level_instructions = {
         1: "One sentence only. Nudge toward a property the solution needs — no data structure or algorithm names.",
@@ -336,7 +415,7 @@ Hint level {hint_level}/3
 Your task: {instruction}
 
 Rules:
-- No code or pseudocode. No preamble or summary. 
+- No preamble or summary.
 - Get straight to the point in a simple, easily understandable way
 - Never reveal the complete algorithm.
 - Be confident — state it once and stop. No second-guessing or mid-response revisions.
@@ -359,8 +438,10 @@ def build_analyze_prompt(body):
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. List issues only — no explanations, no fix hints. Blunt and precise. One very short bullet per issue"
+            "Coaching mode: PRACTICE. List issues only — minimal explanation, no fix hints. Blunt and precise. One very short bullet per issue"
         )
+
+    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
 
     return preamble + f"""
 {coaching_rule}
@@ -388,13 +469,60 @@ def build_dsa_prompt(body):
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. Pattern and structure name only. Zero explanation. Zero syntax."
+            "Coaching mode: PRACTICE. Pattern and structure name only. Zero explanation."
         )
+
+    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
 
     return preamble + f"""
 {coaching_rule}
 
 1-3 lines total. State: algorithmic pattern, specific data structure variant, optimal complexity. Bold pattern/structure names (e.g., **sliding window**, **monotonic deque**). No extra explanation. {language} naming conventions. If the last submission is TLE/MLE, factor that into your complexity recommendation.
+"""
+
+
+def build_optimize_prompt(body):
+    """Efficiency review — replaces the DSA Tips button in Practice mode."""
+    preamble, language = _build_preamble(body)
+    coaching_mode = body.get('coachingMode', 'learn')
+
+    return preamble + f"""
+{CODE_POLICY[coaching_mode]}
+
+Review the efficiency of the user's current code. 6 short lines max, in this order:
+- **Time:** Big-O of the code as written, and the loop or call that drives it.
+- **Space:** Big-O of the code as written, and what's holding the memory.
+- **Optimal:** the best time and space achievable for this problem.
+- **Gap:** if the code isn't optimal, name the technique that closes the gap — do NOT implement it.
+
+If it's already optimal, say so plainly, then note any constant-factor or memory win still on the table
+(early exit, in-place mutation, dropping an auxiliary structure).
+
+Be direct and specific to their code — no generic advice. No preamble.
+If the last submission was TLE or MLE, treat that as the primary signal and lead with it.
+Use {language} naming conventions.
+"""
+
+
+def build_feedback_prompt(body):
+    """End-of-interview debrief — replaces the DSA Tips button in Interview mode."""
+    preamble, _language = _build_preamble(body)
+
+    return preamble + f"""
+{CODE_POLICY['interview']}
+
+You are a senior engineer delivering end-of-interview feedback. Address the candidate directly and
+stay in character — this is the debrief a real interviewer gives, not a code review document.
+
+8 short lines max:
+- **Approach:** was the strategy sound, and did they choose it for the right reasons?
+- **Code quality:** naming, structure, edge-case handling.
+- **Complexity:** Big-O time and space, and whether it's optimal for this problem.
+- **What I'd want to see:** the single most valuable thing they should have done differently.
+
+Be honest and specific — real interviewers don't flatter, and vague praise is useless to them.
+Where the code is genuinely good, say so briefly and move on.
+Close with a one-line overall read of how the interview went.
 """
 
 
@@ -404,16 +532,20 @@ def build_chat_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            f"Coaching mode: LEARN. Teach freely — explain the concept, name the algorithm, show {language} syntax when helpful."
+            "Coaching mode: LEARN. Teach the concept and name the algorithm. Explain the idea in full — "
+            "but the user still writes the solution. If they ask you to write it for them, give them the "
+            "shape of it (a skeleton with blanks, or the one line they're stuck on) and let them finish."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
-            "Coaching mode: INTERVIEW. You are a senior technical interviewer. Challenge the user's logic, ask for complexity analysis, and use Socratic questions. Stay in character."
+            "Coaching mode: INTERVIEW. You are a senior technical interviewer. Challenge the user's logic, ask for complexity analysis, and use Socratic questions. Stay in character. If they ask you to write code, respond the way an interviewer would — you're here to evaluate, not to implement."
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. Minimal nudge only — no concept explanations, no syntax. If they ask something they should know, ask a probing question back. Max 1-2 sentences."
+            "Coaching mode: PRACTICE. Minimal nudge only — no concept explanations. If they ask something they should know, ask a probing question back. Max 1-2 sentences."
         )
+
+    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
 
     return preamble + f"""
 {coaching_rule}
@@ -434,9 +566,11 @@ def build_messages(body):
     history = body.get('history', [])
 
     trigger_by_mode = {
-        'hint':    'Please give me a hint.',
-        'analyze': 'Please analyze my code.',
-        'dsa':     'What data structures and algorithms should I use for this problem?',
+        'hint':     'Please give me a hint.',
+        'analyze':  'Please analyze my code.',
+        'dsa':      'What data structures and algorithms should I use for this problem?',
+        'optimize': 'How efficient is my code, and can it be faster or use less memory?',
+        'feedback': 'The interview is over. Give me your feedback on my code and how I approached it.',
     }
     message = body.get('message') or trigger_by_mode.get(mode, '')
 
@@ -454,14 +588,20 @@ def get_week_start(d=None):
     return (d - datetime.timedelta(days=d.weekday())).isoformat()
 
 
-def check_and_update_usage(user_id):
-    """Returns True if the request is allowed, False if weekly limit exceeded."""
+def check_and_update_usage(user_id, cost=1):
+    """Returns True if the request is allowed, False if weekly limit exceeded.
+
+    `cost` is how many prompts this request consumes (diagram requests cost 2).
+    DynamoDB can't do arithmetic inside a ConditionExpression, so the threshold
+    is precomputed here: a request is allowed iff weeklyRequests <= LIMIT - cost.
+    """
     if not user_id:
         return True
     try:
         today_date = datetime.date.today()
         today = today_date.isoformat()
         current_monday = get_week_start(today_date)
+        threshold = WEEKLY_LIMIT - cost
 
         result = _table.get_item(Key={'userId': user_id})
         item = result.get('Item')
@@ -469,8 +609,8 @@ def check_and_update_usage(user_id):
         if item is None:
             _table.put_item(Item={
                 'userId': user_id,
-                'weeklyRequests': 1,
-                'totalRequests': 1,
+                'weeklyRequests': cost,
+                'totalRequests': cost,
                 'weekStartDate': current_monday,
                 'firstSeen': today,
                 'lastSeen': today,
@@ -484,9 +624,9 @@ def check_and_update_usage(user_id):
             try:
                 _table.update_item(
                     Key={'userId': user_id},
-                    UpdateExpression='SET weeklyRequests = :one, weekStartDate = :monday, lastSeen = :today ADD totalRequests :one',
+                    UpdateExpression='SET weeklyRequests = :cost, weekStartDate = :monday, lastSeen = :today ADD totalRequests :cost',
                     ConditionExpression='weekStartDate <> :monday',
-                    ExpressionAttributeValues={':one': 1, ':monday': current_monday, ':today': today},
+                    ExpressionAttributeValues={':cost': cost, ':monday': current_monday, ':today': today},
                 )
                 return True
             except ClientError as e:
@@ -494,7 +634,7 @@ def check_and_update_usage(user_id):
                     raise
                 # Concurrent request already reset this week; fall through to normal increment
 
-        elif item.get('weeklyRequests', 0) >= WEEKLY_LIMIT:
+        elif item.get('weeklyRequests', 0) > threshold:
             return False
 
         # ConditionExpression makes the limit check and the increment atomic,
@@ -502,9 +642,9 @@ def check_and_update_usage(user_id):
         try:
             _table.update_item(
                 Key={'userId': user_id},
-                UpdateExpression='SET lastSeen = :today ADD weeklyRequests :one, totalRequests :one',
-                ConditionExpression='weeklyRequests < :limit',
-                ExpressionAttributeValues={':one': 1, ':today': today, ':limit': WEEKLY_LIMIT},
+                UpdateExpression='SET lastSeen = :today ADD weeklyRequests :cost, totalRequests :cost',
+                ConditionExpression='weeklyRequests <= :threshold',
+                ExpressionAttributeValues={':cost': cost, ':today': today, ':threshold': threshold},
             )
         except ClientError as e:
             if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
@@ -592,18 +732,32 @@ def handler(event, context):
             _stream_to_runtime(context.aws_request_id, iter([json.dumps(usage_data)]))
             return
 
-        if not check_and_update_usage(user_id):
+        wants_diagram = body.get('wantsDiagram', False)
+        cost = DIAGRAM_COST if wants_diagram else 1
+
+        if not check_and_update_usage(user_id, cost):
+            detail = (
+                f"A diagram costs {DIAGRAM_COST} prompts and you don't have enough left this week."
+                if wants_diagram else
+                f"You've reached your weekly limit of {WEEKLY_LIMIT} requests."
+            )
             _stream_to_runtime(context.aws_request_id, iter([json.dumps({
                 'error': 'weekly_limit_reached',
-                'message': f"You've reached your weekly limit of {WEEKLY_LIMIT} requests. Your limit resets on Monday.",
+                'message': f"{detail} Your limit resets on Monday.",
                 'limit': WEEKLY_LIMIT,
+                'cost': cost,
             })]))
             return
 
         system_prompt, max_tokens = build_prompt_for_mode(mode, body)
         messages = build_messages(body)
 
-        model_id = HAIKU_MODEL_ID if mode in ('hint', 'dsa') else SONNET_MODEL_ID
+        # Mermaid syntax is unforgiving and a parse error wastes a paid request,
+        # so diagram requests always go to the stronger model.
+        model_id = (
+            SONNET_MODEL_ID if (wants_diagram or mode not in ('hint', 'dsa'))
+            else HAIKU_MODEL_ID
+        )
 
         if mode == 'chat':
             _stream_to_runtime(
