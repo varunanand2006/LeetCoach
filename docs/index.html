@@ -101,36 +101,22 @@
 
 <body class="bg-background text-white selection:bg-primary/30 selection:text-primary antialiased">
 
-  <!-- Announcement Bar -->
-  <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
-    class="block w-full bg-surface-light border-b border-border-color py-2.5 text-center text-sm text-text-gray hover:text-white transition-colors">
-    <span class="inline-flex items-center gap-2">
-      <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-      Live on Chrome Web Store: LeetCoach v1.2.0 — Dive into interview mode and learn what it takes to pass technical
-      interviews <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
-    </span>
-  </a>
 
   <!-- Header -->
   <header class="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border-color">
     <nav class="flex justify-between items-center px-6 py-4 max-w-7xl mx-auto">
-      <a href="#" class="flex items-center gap-3">
-        <img alt="LeetCoach Logo" class="w-7 h-7 object-contain rounded-md" src="./logo.svg" />
-        <span class="text-xl font-semibold tracking-tight text-white">LeetCoach</span>
-      </a>
-      <div class="hidden md:flex items-center space-x-8">
-        <a class="nav-link text-sm font-medium" href="#features">Product</a>
-        <a class="nav-link text-sm font-medium" href="#modes">Solutions</a>
-        <a class="nav-link text-sm font-medium" href="https://github.com/varunanand2006/LeetCoach" target="_blank">Open
-          Source</a>
-        <a class="nav-link text-sm font-medium" href="#pricing">Pricing</a>
-      </div>
-      <div class="flex items-center gap-4">
-        <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
-          class="hidden md:flex bg-white text-black font-semibold text-sm px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors">
-          Get Started
+      <div class="flex-1 flex">
+        <a href="#" class="flex items-center gap-3">
+          <img alt="LeetCoach Logo" class="w-7 h-7 object-contain rounded-md" src="./logo.svg" />
+          <span class="text-xl font-semibold tracking-tight text-white">LeetCoach</span>
         </a>
       </div>
+      <div class="hidden md:flex items-center justify-center space-x-8 flex-1">
+        <a class="nav-link text-sm font-medium" href="#features">Product</a>
+        <a class="nav-link text-sm font-medium" href="https://github.com/varunanand2006/LeetCoach" target="_blank">Open Source</a>
+        <a class="nav-link text-sm font-medium" href="#pricing">Pricing</a>
+      </div>
+      <div class="flex-1 hidden md:block"></div>
     </nav>
   </header>
 
@@ -141,14 +127,8 @@
 
       <div class="max-w-7xl mx-auto px-6 flex flex-col items-center text-center relative z-10">
         <div class="space-y-8 max-w-3xl flex flex-col items-center">
-          <div
-            class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border-color bg-surface-light text-xs font-mono text-text-gray">
-            <span class="material-symbols-outlined text-[14px] text-primary">terminal</span>
-            Powered by Claude 4.6 Sonnet
-          </div>
-
           <h1 class="text-5xl md:text-6xl lg:text-[4.5rem] font-medium tracking-tight text-white leading-[1.1]">
-            LeetCode Code Reviewer <br />
+            LeetCode Reviewer <br />
             For <span class="text-primary">Interview Prep</span>
           </h1>
 
@@ -157,10 +137,11 @@
             highlighting bugs, and asking questions about what you wrote like an interviewer would.
           </p>
 
-          <div class="flex flex-col sm:flex-row gap-4 pt-2 w-full justify-center">
+          <div class="flex flex-col sm:flex-row gap-4 pt-2 w-full justify-center items-center">
             <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
               class="bg-white text-black font-semibold px-8 py-4 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors text-lg">
-              Add to Chrome - It's Free
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="21.17" y1="8" x2="12" y2="8"></line><line x1="3.95" y1="6.06" x2="8.54" y2="14"></line><line x1="10.88" y1="21.94" x2="15.46" y2="14"></line></svg>
+              Add to Chrome
             </a>
           </div>
         </div>
@@ -267,6 +248,20 @@
               When you're done with a problem, generate a full retrospective report. LeetCoach reviews your entire
               session — how you approached the problem, where you struggled, the optimal solution with its complexity,
               and what patterns to practice next. It's the debrief a mentor would give you.
+            </div>
+          </div>
+
+          <!-- Card 6 -->
+          <div class="bg-surface border-subtle p-8 rounded-xl card-hover flex flex-col h-full">
+            <div
+              class="w-12 h-12 rounded-lg bg-surface-light border border-border-color flex items-center justify-center mb-6">
+              <span class="material-symbols-outlined text-primary">translate</span>
+            </div>
+            <h3 class="text-xl font-semibold text-white mb-3">20+ Languages</h3>
+            <div class="text-text-gray leading-relaxed flex-grow">
+              Python, Java, C++, JavaScript, Go, Rust, TypeScript, and more. LeetCoach reads and reviews code in
+              whatever language you write it in — no configuration, no switching. It detects your language automatically
+              and adapts its feedback to match.
             </div>
           </div>
         </div>
@@ -396,7 +391,7 @@
             Tailored to your goals
           </h2>
           <p class="text-lg text-text-gray mb-8">
-            Switch between three distinct coaching modes depending on whether you're learning a new topic, grinding
+            Switch between five distinct coaching modes depending on whether you're learning a new topic, grinding
             problems, or preparing for a real interview.
           </p>
 
@@ -497,11 +492,11 @@
                 </li>
                 <li class="flex items-center gap-3 text-text-gray text-sm">
                   <span class="material-symbols-outlined text-primary text-[18px]">check</span>
-                  Powered by Claude 4.6 Sonnet
+                  Claude 4.6 Sonnet
                 </li>
                 <li class="flex items-center gap-3 text-text-gray text-sm">
                   <span class="material-symbols-outlined text-primary text-[18px]">check</span>
-                  All 20+ programming languages
+                  All features included
                 </li>
               </ul>
               <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
@@ -568,7 +563,10 @@
           </div>
 
           <!-- Large Pack -->
-          <div class="border-subtle rounded-2xl bg-surface-light">
+          <div class="border-gradient rounded-2xl p-1 bg-surface-light relative">
+            <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
+              Best Value
+            </div>
             <div class="bg-background rounded-xl p-8 border border-border-color h-full flex flex-col">
               <h3 class="text-xl font-semibold text-white mb-2">Large</h3>
               <div class="flex items-baseline justify-center gap-1 mb-6">
