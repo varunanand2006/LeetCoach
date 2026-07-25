@@ -176,6 +176,7 @@ interface for code feedback, hints, and DSA guidance.
 - Grants on both `checkout.session.completed` and `checkout.session.async_payment_succeeded`, and only when `payment_status == 'paid'` — delayed payment methods complete the session before money moves
 - Revokes on `charge.refunded` and `charge.dispute.created`, pro-rata for partial refunds. DynamoDB can't express `max(0, balance - n)` in one update, so it tries the full deduction and falls back to zeroing when the user already spent part of the pack. `userId`/`pack` reach the charge via `payment_intent_data.metadata` set at session creation
 - **Its role has no Bedrock access, deliberately.** The billing kill switch attaches a Deny to `ChatFunctionExecutionRole` only, so payments keep recording correctly even while the AI is shut off
+- IAM for transactions: `TransactWriteItems` authorises against the **item-level** actions in the transaction, not a `TransactWriteItems` action. Verified live with `aws iam simulate-principal-policy` — `PutItem`/`UpdateItem`/`GetItem` are `allowed` on both table ARNs. **`dynamodb:ConditionCheckItem` is `implicitDeny`**: nothing uses a `ConditionCheck` operation today, but adding one to a transaction would fail at runtime against a policy that looks complete. Add the action to `PaymentDynamoDBAccess` if that ever changes
 - Tests: `python payments/tests/test_webhook.py` (42 cases, no AWS needed — fakes DynamoDB transaction semantics including per-item `CancellationReasons`)
 
 ## DynamoDB
@@ -219,6 +220,32 @@ interface for code feedback, hints, and DSA guidance.
 - Built with Google Stitch + Antigravity (Gemini); no build tools, single HTML file
 - To update: edit `docs/index.html`, commit and push to master — GitHub Pages auto-deploys from `/docs` on master branch
 - After pushing, hard refresh with `Ctrl+Shift+R` to bust browser cache
+
+## Stripe Account Configuration
+- Endpoint: the `PaymentWebhookUrl` stack output, registered in Stripe → Developers → Webhooks
+- Destination type **Webhook endpoint**, scope **Your account** (no Connect), payload style **snapshot events**
+- **Snapshot, not thin events.** Thin events omit the full object, so `data.object` would not carry `client_reference_id`, `amount_total` or `metadata` — every handler in `payments/app.py` reads from it and would break
+- Exactly four events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `charge.refunded`, `charge.dispute.created`
+- **Do not use `stripe listen --forward-to`.** It exists for local development where Stripe cannot reach the endpoint, and it mints its **own** signing secret that differs from the registered endpoint's. The Lambda Function URL is publicly reachable, so Stripe POSTs to it directly and the endpoint's own `whsec_` is the only correct value for `StripeWebhookSecret`
+- Test a purchase from the extension itself with card `4242 4242 4242 4242`, then refund it in the dashboard to exercise `charge.refunded` and prove the `payment_intent_data[metadata]` plumbing reached the Charge
+- A 500 in Stripe's delivery log means IAM; the webhook's CloudWatch log names the missing action
+
+## Budgets (three exist; only one can stop production)
+| Budget | Limit | Action |
+|---|---|---|
+| `LeetCoach-Bedrock-leetcoach` | $50 | Kill switch → live role. **The only one that can stop production** |
+| `LeetCoach-Monthly` | $10 | Email only (`Actions: []`). Deliberate early-warning tripwire, not a cutoff |
+| `LeetCoach-Bedrock-leet-coach` | $10 | Kill switch → the orphan stack's role. Cannot affect production |
+
+## Duplicate `leet-coach` Stack (unresolved)
+- A second CloudFormation stack, `leet-coach`, created 2026-04-11, is still live and **nothing points at it**
+- Owns a public Function URL on `python3.11` with Bedrock invoke permissions, its own $10 budget + kill switch, and `leet-coach-users` — a **different table** from `leetcoach-users`, holding one stale row (`userId: varunanand2006`, last seen 2026-04-14, from before Google-sub IDs)
+- Because the table names differ, `delete-stack` on it **cannot** touch `leetcoach-users` or `leetcoach-payments`
+- `aws lambda list-functions` returns functions from both stacks — **`[0]` in a JMESPath query can silently grab the orphan.** Filter on the full function name
+
+## Environment Notes (this machine)
+- Shell is PowerShell: no `\` line continuations (use a backtick), no `cut`/`head`/`tail`, no `&&`
+- **TLS interception is active**: `aws` needs `--no-verify-ssl`, `curl` needs `-k`
 
 ## Tests
 - `python backend/tests/test_usage_buckets.py` — 36 cases, two-balance charge/refund
@@ -278,8 +305,12 @@ interface for code feedback, hints, and DSA guidance.
 - [x] Stripe checkout: `create_checkout_session` mode, inline pack picker, success/cancel pages
 - [x] Lambda runtime bumped `python3.11` → `python3.14` (3.11 creation was disabled 2026-07-31)
 - [x] Budget cap parameterised as `MonthlyBudgetUsd`, default raised $10 → $50
-- [ ] **Manual, before any real payment:** Stripe account + webhook endpoint registered, `StripeSecretKey`/`StripeWebhookSecret` in `samconfig.toml`, test-mode end-to-end run
-- [ ] Deploy and publish the extension update
+- [x] Deployed to stack `leetcoach`: both functions on `python3.14`, `leetcoach-payments` ACTIVE with TTL, real `whsec_` in place, Stripe key in **test mode**, kill-switch budget $50
+- [x] Webhook verified live — unsigned and forged-signature requests both rejected with HTTP 400
+- [x] Webhook role verified for `TransactWriteItems` via `iam simulate-principal-policy`
+- [ ] **One test-mode purchase**, which is the only thing that proves the last two unknowns: the `runtime_client` monkey-patch under Python 3.14, and the end-to-end grant path
+- [ ] Decide on the orphan `leet-coach` stack (see above)
+- [ ] Switch `StripeSecretKey` to `sk_live_` and publish the extension update
 - [ ] Raise the $10 budget cap before taking any payment — the kill switch can Deny Bedrock for a paying customer
 - [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings
