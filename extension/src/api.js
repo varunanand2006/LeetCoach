@@ -1,6 +1,6 @@
 // api.js - Network requests and API communication
 
-import { API_URL, getThisMonday, setWeeklyRequestsUsed, weeklyRequestsUsed, DIAGRAM_COST } from './state.js';
+import { API_URL, getThisMonday, setWeeklyRequestsUsed, weeklyRequestsUsed, DIAGRAM_COST, REVIEW_COST } from './state.js';
 import { updateUsageIndicator, showLimitWarning, scrollToBottom } from './ui.js';
 import { renderMarkdown } from './markdown.js';
 import { renderDiagramsIn } from './diagram.js';
@@ -109,7 +109,11 @@ export async function streamResponse(body, assistantBubble, onSuccess) {
       console.warn('[LeetCoach] diagram pass failed:', e);
     }
 
-    incrementUsage(body.wantsDiagram ? DIAGRAM_COST : 1);
+    // Mirrors the Lambda's cost table: review is a flat 5 and already includes
+    // a diagram, so an armed toggle must not stack on top of it.
+    incrementUsage(
+      body.mode === 'review' ? REVIEW_COST : body.wantsDiagram ? DIAGRAM_COST : 1
+    );
     onSuccess(assistantText);
   } catch (err) {
     assistantBubble.textContent = `Error: ${err.message || 'Failed to generate response. Please sign in.'}`;

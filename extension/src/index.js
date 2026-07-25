@@ -4,13 +4,15 @@ import {
   getTabState, setActiveTabId, activeTabId, coachingMode, setCoachingMode,
   setWeeklyRequestsUsed, getThisMonday, CLEAR_PHRASES, deleteTabState,
   saveProblemState, loadProblemState, clearProblemState,
-  diagramArmed, setDiagramArmed, DIAGRAM_COST
+  diagramArmed, setDiagramArmed, DIAGRAM_COST, MAX_RETAINED_HISTORY
 } from './state.js';
 import {
   initDOMElements, updateUsageIndicator, updateHeader, scrollToBottom,
   setInputEnabled, syncHintBadge, syncCoachingToggle, removeEmptyState,
   addEmptyState, createMessageBubble, appendMessage, syncDiagramToggle, remainingPrompts,
-  chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnThird, coachingToggleEl, diagramToggleEl
+  setOverflowOpen, isOverflowOpen, syncMenuItems,
+  chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnThird, diagramToggleEl,
+  overflowToggleEl, menuReviewEl, menuClearEl, menuResetHintEl, segButtons
 } from './ui.js';
 import { fetchUsageFromServer, streamResponse } from './api.js';
 import { renderMarkdown } from './markdown.js';
@@ -29,15 +31,46 @@ document.addEventListener('DOMContentLoaded', () => {
   modeBtnAnalyze.addEventListener('click', () => handleModeRequest('analyze'));
   modeBtnThird.addEventListener('click', () => handleModeRequest(modeBtnThird.dataset.mode));
 
-  coachingToggleEl.addEventListener('click', async () => {
-    let newMode = 'learn';
-    if (coachingMode === 'learn') newMode = 'practice';
-    else if (coachingMode === 'practice') newMode = 'interview';
-    else if (coachingMode === 'interview') newMode = 'learn';
+  for (const btn of segButtons) {
+    btn.addEventListener('click', async () => {
+      const newMode = btn.dataset.coaching;
+      if (newMode === coachingMode) return;
+      setCoachingMode(newMode);
+      await chrome.storage.local.set({ coachingMode: newMode });
+      syncCoachingToggle();
+    });
+  }
 
-    setCoachingMode(newMode);
-    await chrome.storage.local.set({ coachingMode: newMode });
-    syncCoachingToggle();
+  overflowToggleEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setOverflowOpen(!isOverflowOpen());
+  });
+
+  document.addEventListener('click', (e) => {
+    if (isOverflowOpen() && !e.target.closest('#overflow-menu, #overflow-toggle')) {
+      setOverflowOpen(false);
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOverflowOpen()) setOverflowOpen(false);
+  });
+
+  menuReviewEl.addEventListener('click', () => {
+    setOverflowOpen(false);
+    handleModeRequest('review');
+  });
+
+  menuClearEl.addEventListener('click', () => {
+    setOverflowOpen(false);
+    clearChat();
+  });
+
+  menuResetHintEl.addEventListener('click', () => {
+    setOverflowOpen(false);
+    const state = getTabState(activeTabId);
+    state.hintLevel = 1;
+    syncHintBadge();
+    saveProblemState(state.slug, state.history, state.hintLevel);
   });
 
   // Diagram arming is one-shot and deliberately not persisted — it should never
@@ -242,20 +275,28 @@ async function fetchContext() {
   return context;
 }
 
+/** Reset the conversation for the active tab. Shared by /clear and the ⋯ menu. */
+function clearChat() {
+  const state = getTabState(activeTabId);
+  clearProblemState(state.slug);
+  state.history = [];
+  state.domSnapshot = null;
+  state.hintLevel = 1;
+  chatEl.replaceChildren();
+  addEmptyState('Ask a question or use the buttons below.');
+  syncHintBadge();
+  syncMenuItems();
+  inputEl.focus();
+}
+
 async function sendMessage(userText) {
   userText = (userText ?? '').trim();
   if (!userText) return;
 
   if (CLEAR_PHRASES.has(userText.toLowerCase())) {
-    const state = getTabState(activeTabId);
-    clearProblemState(state.slug);
-    state.history = [];
-    state.domSnapshot = null;
-    state.hintLevel = 1;
-    chatEl.replaceChildren();
-    addEmptyState('Ask a question or use the buttons below.');
-    syncHintBadge();
-    inputEl.focus();
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    clearChat();
     return;
   }
 
@@ -301,7 +342,7 @@ async function sendMessage(userText) {
       { role: 'user', content: userText },
       { role: 'assistant', content: assistantText },
     );
-    if (state.history.length > 20) state.history.splice(0, 2);
+    if (state.history.length > MAX_RETAINED_HISTORY) state.history.splice(0, 2);
     saveProblemState(state.slug, state.history, state.hintLevel);
   });
 
@@ -336,6 +377,7 @@ async function handleModeRequest(mode) {
     dsa: '[ DSA Tips ]',
     optimize: '[ Optimize ]',
     feedback: '[ Feedback ]',
+    review: '[ Review Report ]',
   };
   appendMessage('user', labels[mode]);
 
@@ -362,6 +404,9 @@ async function handleModeRequest(mode) {
     wantsDiagram,
   };
   if (mode === 'hint') body.hintLevel = hintLevel;
+  // The review report is the only button mode that reads the conversation —
+  // it summarizes the whole session, so it needs the retained history.
+  if (mode === 'review') body.history = state.history.slice(-MAX_RETAINED_HISTORY);
 
   await streamResponse(body, assistantBubble, (assistantText) => {
     if (mode === 'hint' && hintLevel < 3) {
@@ -372,7 +417,7 @@ async function handleModeRequest(mode) {
       { role: 'user', content: labels[mode] },
       { role: 'assistant', content: assistantText },
     );
-    if (state.history.length > 20) state.history.splice(0, 2);
+    if (state.history.length > MAX_RETAINED_HISTORY) state.history.splice(0, 2);
     saveProblemState(state.slug, state.history, state.hintLevel);
   });
 

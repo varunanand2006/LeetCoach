@@ -42,21 +42,125 @@ html, body {
    Header
 ------------------------------------------------------------------------- */
 
-#header {
+#topbar {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
+  flex-shrink: 0;
   background: rgba(17, 17, 17, 0.70);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(46, 46, 46, 0.4);
-  flex-shrink: 0;
-  gap: 10px;
+}
+
+#header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px;
+  gap: 8px;
   min-width: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Coaching mode segments
+------------------------------------------------------------------------- */
+
+#mode-row {
+  display: flex;
+  gap: 3px;
+  padding: 0 12px 8px;
+}
+
+.seg-btn {
+  flex: 1;
+  background: #1e1e1e;
+  color: #7a7a7a;
+  border: 1px solid #2e2e2e;
+  border-radius: 5px;
+  padding: 4px 2px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.seg-btn:hover:not(:disabled):not(.active) {
+  background: #262626;
+  color: #b0b0b0;
+}
+
+.seg-btn.active {
+  background: rgba(255, 161, 22, 0.16);
+  border-color: #ffa116;
+  color: #ffa116;
+}
+
+.seg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* -------------------------------------------------------------------------
+   Overflow menu
+------------------------------------------------------------------------- */
+
+#overflow-menu {
+  /* fixed, not absolute — #app is the scroll container, so an absolutely
+     positioned menu would scroll away from the ⋯ button that opened it. */
+  position: fixed;
+  top: 78px;
+  right: 10px;
+  z-index: 20;
+  min-width: 190px;
+  background: #1e1e1e;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+  animation: diagramFadeIn 0.12s ease;
+}
+#overflow-menu[hidden] { display: none; }
+
+#overflow-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 7px 9px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+#overflow-menu button:hover:not(:disabled) { background: #2a2a2a; }
+#overflow-menu button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.menu-cost {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffa116;
+  background: rgba(255, 161, 22, 0.14);
+  border: 1px solid rgba(255, 161, 22, 0.4);
+  border-radius: 9px;
+  padding: 1px 6px;
+}
+#overflow-menu button:disabled .menu-cost { color: #7a7a7a; border-color: #3a3a3a; background: none; }
+
+#menu-usage {
+  color: #777;
+  font-size: 10.5px;
+  line-height: 1.4;
+  padding: 7px 9px 4px;
+  margin-top: 3px;
+  border-top: 1px solid #2e2e2e;
 }
 
 
@@ -223,7 +327,7 @@ html, body {
    Header Icons (Usage & Coaching)
 ------------------------------------------------------------------------- */
 
-#usage-indicator, .coaching-toggle {
+#usage-indicator, .icon-btn {
   position: relative;
   flex-shrink: 0;
   color: #666;
@@ -239,14 +343,14 @@ html, body {
 }
 
 #usage-indicator { cursor: default; }
-.coaching-toggle { cursor: pointer; }
+.icon-btn { cursor: pointer; }
 
-#usage-indicator:hover, .coaching-toggle:hover {
+#usage-indicator:hover, .icon-btn:hover {
   opacity: 1;
   filter: grayscale(0%);
 }
 
-#usage-indicator::after, .coaching-toggle::after {
+#usage-indicator::after, .icon-btn::after {
   content: attr(data-tooltip);
   position: absolute;
   right: 0;
@@ -267,7 +371,7 @@ html, body {
   z-index: 10;
 }
 
-#usage-indicator:hover::after, .coaching-toggle:hover::after {
+#usage-indicator:hover::after, .icon-btn:hover::after {
   opacity: 1;
 }
 

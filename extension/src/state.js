@@ -19,6 +19,15 @@ export function setWeeklyRequestsUsed(count) { weeklyRequestsUsed = count; }
 /** Cost in prompts of a request that also produces a diagram. Mirrors DIAGRAM_COST in the Lambda. */
 export const DIAGRAM_COST = 2;
 
+/** Cost of a full session review report. Mirrors REVIEW_COST in the Lambda. */
+export const REVIEW_COST = 5;
+
+/** A retrospective on a near-empty conversation is a guaranteed waste of 5 prompts. */
+export const MIN_REVIEW_MESSAGES = 6;
+
+/** History entries retained per problem — deep enough to feed a review report. */
+export const MAX_RETAINED_HISTORY = 30;
+
 /** One-shot arm: set by the header toggle, cleared as soon as a request fires. */
 export let diagramArmed = false;
 export function setDiagramArmed(on) { diagramArmed = on; }

@@ -37,14 +37,20 @@ GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
 
 # Input validation limits
-VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'optimize', 'feedback', 'usage'}
+VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'optimize', 'feedback', 'review', 'usage'}
 # A diagram request costs 2 prompts against the weekly limit instead of 1.
 DIAGRAM_COST = 2
 DIAGRAM_TOKEN_BONUS = 400
+# A full review report costs 5 and always includes a diagram.
+REVIEW_COST = 5
 MAX_CODE_BYTES = 10_000
 MAX_DESC_BYTES = 5_000
 MAX_MSG_BYTES = 2_000
 MAX_HISTORY_TURNS = 10
+# The review report summarizes the whole session, so it gets a deeper history.
+# Kept per-mode rather than raised globally — a 30-turn history on every chat
+# turn would inflate input token cost on the most-used path.
+MAX_HISTORY_TURNS_REVIEW = 30
 _USERID_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,50}$')
 _SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-]{0,99}$')
 
@@ -226,7 +232,8 @@ def validate_and_sanitize_body(body):
 
     history = body.get('history', [])
     if isinstance(history, list):
-        body['history'] = history[-MAX_HISTORY_TURNS:]
+        cap = MAX_HISTORY_TURNS_REVIEW if body.get('mode') == 'review' else MAX_HISTORY_TURNS
+        body['history'] = history[-cap:]
     else:
         body['history'] = []
 
@@ -350,6 +357,10 @@ def build_prompt_for_mode(mode, body):
         prompt, max_tokens = build_optimize_prompt(body), 400
     elif mode == 'feedback':
         prompt, max_tokens = build_feedback_prompt(body), 512
+    elif mode == 'review':
+        # The diagram is already part of the review prompt, so skip the augmentation
+        # below — otherwise the instruction is duplicated and double-charged.
+        return build_review_prompt(body), 1400
     else:
         prompt, max_tokens = build_chat_prompt(body), 512  # 'chat' or unknown
 
@@ -526,6 +537,47 @@ Close with a one-line overall read of how the interview went.
 """
 
 
+def build_review_prompt(body):
+    """Full session retrospective. Deliberately exempt from CODE_POLICY — the user
+    generates this when they're done, so withholding the solution defeats the point."""
+    preamble, language = _build_preamble(body)
+
+    return preamble + f"""
+You are writing a end-of-session review report for the problem above. The conversation history is
+the user's full session — read it as evidence of how they actually worked, not just what they asked.
+
+This report is a RETROSPECTIVE. Unlike every other mode, you may show the complete optimal solution
+and explain it in full. The user has finished; withholding now would be unhelpful.
+
+Structure it with these headings exactly, in this order:
+
+## The problem
+Two lines: what it's really testing, and the insight that unlocks it.
+
+## How you approached it
+Read their session honestly. Where did they start? What did they try? Name the specific moments they
+got stuck or changed direction. Reference what they actually did — generic praise is worthless here.
+
+## Where you struggled
+The 2-3 concrete sticking points, and for each, the underlying gap it points to (a pattern they don't
+know yet, an edge case habit, a complexity blind spot). Be direct but not harsh.
+
+## The solution
+The optimal approach in {language}, complete and commented, with its time and space complexity.
+
+## What to practice next
+2-3 specific, named things — problem types or patterns, not "keep practicing".
+
+Then append exactly one Mermaid diagram in a ```mermaid fenced block visualizing the solution's core
+mechanic. Allowed types ONLY: {ALLOWED_DIAGRAM_TYPES}. Under 12 nodes, `flowchart TD` preferred.
+In flowchart nodes only, wrap labels in double quotes — A["left < right"] — since unquoted (), [],
+{{}}, or : breaks the parser. Do not quote participant, class, or state names. No markdown or HTML
+inside labels. Nothing after the closing fence.
+
+Write to the user as "you". Be specific and useful over kind.
+"""
+
+
 def build_chat_prompt(body):
     preamble, language = _build_preamble(body)
 
@@ -571,6 +623,7 @@ def build_messages(body):
         'dsa':      'What data structures and algorithms should I use for this problem?',
         'optimize': 'How efficient is my code, and can it be faster or use less memory?',
         'feedback': 'The interview is over. Give me your feedback on my code and how I approached it.',
+        'review':   'Write my review report for this session.',
     }
     message = body.get('message') or trigger_by_mode.get(mode, '')
 
@@ -732,15 +785,23 @@ def handler(event, context):
             _stream_to_runtime(context.aws_request_id, iter([json.dumps(usage_data)]))
             return
 
-        wants_diagram = body.get('wantsDiagram', False)
-        cost = DIAGRAM_COST if wants_diagram else 1
+        # Review already includes a diagram in its prompt, so an armed toggle
+        # must not stack another cost on top of the flat 5.
+        wants_diagram = body.get('wantsDiagram', False) and mode != 'review'
+        if mode == 'review':
+            cost = REVIEW_COST
+        elif wants_diagram:
+            cost = DIAGRAM_COST
+        else:
+            cost = 1
 
         if not check_and_update_usage(user_id, cost):
-            detail = (
-                f"A diagram costs {DIAGRAM_COST} prompts and you don't have enough left this week."
-                if wants_diagram else
-                f"You've reached your weekly limit of {WEEKLY_LIMIT} requests."
-            )
+            if mode == 'review':
+                detail = f"A review report costs {REVIEW_COST} prompts and you don't have enough left this week."
+            elif wants_diagram:
+                detail = f"A diagram costs {DIAGRAM_COST} prompts and you don't have enough left this week."
+            else:
+                detail = f"You've reached your weekly limit of {WEEKLY_LIMIT} requests."
             _stream_to_runtime(context.aws_request_id, iter([json.dumps({
                 'error': 'weekly_limit_reached',
                 'message': f"{detail} Your limit resets on Monday.",

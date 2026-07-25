@@ -10,22 +10,44 @@
 <body>
   <div id="app">
 
-    <!-- Header -->
-    <div id="header">
-      <span id="problem-name">LeetCoach</span>
-      <button id="coaching-toggle" class="coaching-toggle" data-tooltip="Learn mode&#10;Click to switch to Practice">
-        <span id="coaching-icon">🎓</span>
-      </button>
-      <button id="diagram-toggle" class="coaching-toggle" aria-pressed="false"
-              data-tooltip="Diagram off&#10;Click to add a diagram to your next reply&#10;Costs 2 prompts instead of 1">
-        <span id="diagram-icon">✨</span>
-      </button>
-      <div id="usage-indicator" data-tooltip="100 prompts left">
-        <svg class="usage-ring" viewBox="0 0 24 24" aria-hidden="true">
-          <circle class="ring-track" cx="12" cy="12" r="9" />
-          <circle id="usage-ring-fill" class="ring-fill" cx="12" cy="12" r="9" />
-        </svg>
+    <!-- Sticky top bar: title row + coaching mode segments -->
+    <div id="topbar">
+      <div id="header">
+        <span id="problem-name">LeetCoach</span>
+        <button id="diagram-toggle" class="icon-btn" aria-pressed="false"
+                data-tooltip="Visualize &middot; 2 prompts">
+          <span id="diagram-icon">✨</span>
+        </button>
+        <div id="usage-indicator" data-tooltip="100 / 100">
+          <svg class="usage-ring" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="ring-track" cx="12" cy="12" r="9" />
+            <circle id="usage-ring-fill" class="ring-fill" cx="12" cy="12" r="9" />
+          </svg>
+        </div>
+        <button id="overflow-toggle" class="icon-btn" aria-haspopup="menu" aria-expanded="false"
+                data-tooltip="More">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>
+          </svg>
+        </button>
       </div>
+
+      <!-- Coaching mode: always visible so the active mode never needs a hover -->
+      <div id="mode-row" role="group" aria-label="Coaching mode">
+        <button class="seg-btn" data-coaching="learn">Learn</button>
+        <button class="seg-btn" data-coaching="practice">Practice</button>
+        <button class="seg-btn" data-coaching="interview">Interview</button>
+      </div>
+    </div>
+
+    <!-- Overflow menu -->
+    <div id="overflow-menu" role="menu" hidden>
+      <button id="menu-review" role="menuitem">
+        <span>Review report</span><span class="menu-cost">5</span>
+      </button>
+      <button id="menu-reset-hint" role="menuitem">Reset hint level</button>
+      <button id="menu-clear" role="menuitem">Clear chat</button>
+      <div id="menu-usage"></div>
     </div>
 
     <!-- Chat area -->
@@ -36,14 +58,14 @@
     <!-- Input row -->
     <div id="input-row">
       <div id="mode-bar">
-        <button id="btn-hint" class="mode-btn" title="Get a progressive hint">
+        <button id="btn-hint" class="mode-btn" title="Progressive nudge">
           <i class="gg-key"></i> <span class="mode-label">Hint</span> <span id="hint-level-badge">1</span>
         </button>
-        <button id="btn-analyze" class="mode-btn" title="Analyze your current code">
+        <button id="btn-analyze" class="mode-btn" title="Review my code">
           <i class="gg-play-list-search"></i> <span class="mode-label">Analyze</span>
         </button>
         <!-- Third button swaps with coaching mode: DSA Tips / Optimize / Feedback -->
-        <button id="btn-third" class="mode-btn" data-mode="dsa" title="Data structure &amp; algorithm tips">
+        <button id="btn-third" class="mode-btn" data-mode="dsa" title="Patterns &amp; structures">
           <span class="mode-icon"></span> <span class="mode-label">DSA Tips</span>
         </button>
       </div>

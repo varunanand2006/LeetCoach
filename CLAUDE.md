@@ -38,11 +38,11 @@ interface for code feedback, hints, and DSA guidance.
 - `manifest.json` — permissions, content scripts, side panel config, keyboard shortcut
 - `background.js` — side panel enable/disable logic, keyboard shortcut handler
 - `content.js` — reads LeetCode DOM (title, number, difficulty, tags, description, language); does NOT read Monaco code
-- `sidepanel.html` — side panel UI markup (header, chat area, mode bar)
+- `sidepanel.html` — side panel UI markup (topbar, coaching segments, overflow menu, chat area, mode bar)
 - `styles.css` — all CSS (dark theme, mode buttons, spinner, markdown, usage ring, diagrams)
 - `src/index.js` — entry point and orchestrator: event wiring, per-tab state, navigation detection, request building
 - `src/state.js` — centralized state (per-tab history, coaching mode, usage count, diagram arm flag, storage helpers)
-- `src/ui.js` — DOM refs and rendering (usage ring, coaching toggle, diagram toggle, swappable third mode button)
+- `src/ui.js` — DOM refs and rendering (usage ring, coaching segments, diagram toggle, overflow menu, swappable third mode button)
 - `src/api.js` — Lambda fetch, streaming, Google auth token, usage increment
 - `src/markdown.js` — markdown → HTML with Prism highlighting; turns ```mermaid fences into placeholder divs
 - `src/diagram.js` — lazy Mermaid import and SVG rendering, click-to-expand overlay, failure fallback
@@ -50,11 +50,27 @@ interface for code feedback, hints, and DSA guidance.
 - `vendor/prism.js` / `vendor/prism-theme.css` — bundled Prism.js + dark theme matching the sidebar palette
 - `vendor/mermaid/` — 35-file traced subset of mermaid@11 ESM (~1MB)
 
+## Side Panel Layout
+- `#topbar` is the sticky container holding both the title row and the coaching segments. `#header` itself is no longer sticky — moving it broke nothing but is easy to reintroduce by accident
+- Header right side: ✨ diagram toggle, ◔ usage ring, ⋯ overflow
+- `#mode-row` — always-visible Learn/Practice/Interview segmented control. Replaced the old single emoji cycle button, which made the active mode invisible without hovering
+- `#overflow-menu` — Review report (5), Reset hint level, Clear chat, plus a usage line. **Must be `position: fixed`**, not absolute: `#app` is the scroll container, so an absolutely positioned menu scrolls away from the button that opened it
+- Tooltips are noun phrases, not sentences — "Runtime analysis", not "Review runtime, memory, and Big-O complexity". Note that `syncThirdButton` overwrites the third button's `title` from the `THIRD_BUTTON` table, so editing the HTML `title` alone has no effect
+- `/clear` and `/reset` still work as typed commands; the ⋯ menu's Clear chat calls the same `clearChat()`
+
+## Review Report
+- 5 prompts (`REVIEW_COST`), triggered only from the ⋯ menu — the menu placement is itself the friction, so there's deliberately no confirm dialog
+- Disabled below `MIN_REVIEW_MESSAGES` (6) history entries — a retrospective on a near-empty conversation is a guaranteed waste of 5 prompts
+- The only button mode that sends `history`; needs up to 30 entries, so `MAX_RETAINED_HISTORY` (30) governs frontend retention and `MAX_HISTORY_TURNS_REVIEW` (30) the backend cap. Chat stays at 10 — a 30-turn history on every chat turn would inflate input token cost on the most-used path
+- **Deliberately exempt from `CODE_POLICY`** — it's a retrospective, so it may show the complete optimal solution regardless of coaching mode. The prompt is identical in all three modes
+- Always includes a diagram (built into the prompt, not the ✨ arm). An armed toggle is ignored for review so the cost stays a flat 5 and the diagram instruction isn't duplicated
+- Renders as a normal inline assistant bubble, so history persistence and diagram redraw work for free
+
 ## Diagrams
 - Opt-in per request: the ✨ toggle in the header **arms** a diagram for the next request, then disarms itself (one-shot, deliberately not persisted so a reload can't silently double-charge)
 - Costs 2 prompts instead of 1 (`DIAGRAM_COST`, mirrored in `state.js` and `lambda_function.py`)
 - Sent as a `wantsDiagram` boolean on the body, NOT a separate mode — it composes with chat/hint/analyze/dsa/optimize/feedback
-- Armed state is loud: orange glow on the toggle, `· 2` suffix on the mode buttons, and a changed input placeholder
+- Armed state shows as an orange glow on the star plus a changed input placeholder. An earlier `· 2` suffix on every mode button was removed — three markers for one state just squeezed the labels
 - Toggle greys out and refuses to arm when fewer than 2 prompts remain
 - Backend appends a diagram section to whichever system prompt was built and adds `DIAGRAM_TOKEN_BONUS` (400) tokens
 - Diagram requests always route to Sonnet, even for hint/dsa — Mermaid syntax errors waste a paid request
@@ -68,18 +84,18 @@ interface for code feedback, hints, and DSA guidance.
 ## Backend
 - Single handler in lambda_function.py
 - Receives: `{ mode, message, problem, code, language, history, hintLevel, submissionResult, userId, coachingMode, slug, wantsDiagram }`
-  - `mode`: `"chat"` | `"hint"` | `"analyze"` | `"dsa"` | `"optimize"` | `"feedback"` | `"usage"`
+  - `mode`: `"chat"` | `"hint"` | `"analyze"` | `"dsa"` | `"optimize"` | `"feedback"` | `"review"` | `"usage"`
   - `problem`: `{ difficulty, tags, description }` (name/number/slug intentionally omitted)
   - `hintLevel`: 1–3 (hint mode only)
   - `submissionResult`: `{ status, input, expected, actual, message }` or null
-  - `history`: last 10 turns (chat only — the button modes send no history)
+  - `history`: last 10 turns for chat, last 30 for review; the other button modes send none
   - `userId`: overwritten server-side from the verified Google token; never trusted from the body
   - `coachingMode`: `"learn"` | `"practice"` | `"interview"`
   - `wantsDiagram`: bool — costs 2 prompts and appends a Mermaid diagram request
 - Returns: streamed plain text via chunked transfer encoding to Lambda Runtime API
 - Model routing: hint + dsa → `us.anthropic.claude-haiku-4-5-20251001-v1:0`; everything else → `us.anthropic.claude-sonnet-4-6` (the `us.` prefix enables cross-region inference routing). Any request with `wantsDiagram` overrides to Sonnet
 - Model IDs overridable via `HAIKU_MODEL_ID` / `SONNET_MODEL_ID` Lambda env vars — update these when Anthropic deprecates a version, no code change needed
-- Token budgets: hint 128, dsa 256, optimize 400, analyze 512, feedback 512, chat 512; `+400` when `wantsDiagram`
+- Token budgets: hint 128, dsa 256, optimize 400, analyze 512, feedback 512, chat 512, review 1400; `+400` when `wantsDiagram` (review is exempt — its diagram is already in the prompt)
 - `usage` mode: reads DynamoDB, streams `{weeklyRequests, weekStartDate}` as JSON — does NOT count against limit
 - `check_and_update_usage(user_id, cost=1)`: called before every Bedrock call; `cost` is 2 for diagram requests. Allows the request iff `weeklyRequests <= WEEKLY_LIMIT - cost` — the threshold is precomputed in Python because DynamoDB can't do arithmetic inside a `ConditionExpression`. Always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday; the `ConditionExpression` makes the limit check + increment atomic (eliminates TOCTOU race on concurrent requests)
 - `WEEKLY_LIMIT = 100` (named constant, easy to change)
@@ -173,6 +189,8 @@ interface for code feedback, hints, and DSA guidance.
 - [x] Usage indicator changed from ✨ to a circular meter ring; ✨ reused for the diagram toggle
 - [x] `optimize` and `feedback` modes replacing DSA Tips in Practice/Interview (v1.2.0)
 - [x] `CODE_POLICY` tightening code disclosure across all modes (v1.2.0)
+- [x] Segmented coaching-mode row + ⋯ overflow menu; concise tooltips (v1.2.0)
+- [x] Review report mode (5 prompts, 30-turn history, full disclosure) (v1.2.0)
 - [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings
 
