@@ -1,7 +1,7 @@
 // ui.js - DOM manipulation and UI updates
 
 import {
-  WEEKLY_LIMIT, weeklyRequestsUsed, purchasedCredits, getTimeUntilResetStr,
+  WEEKLY_LIMIT, weeklyRequestsUsed, purchasedCredits, paymentsEnabled, getTimeUntilResetStr,
   activeTabId, getTabState, coachingMode, diagramArmed,
   DIAGRAM_COST, REVIEW_COST, MIN_REVIEW_MESSAGES, PROMPT_PACKS,
 } from './state.js';
@@ -314,6 +314,15 @@ export function showBuyCard(onPick) {
 let buyHandler = null;
 export function setBuyHandler(fn) { buyHandler = fn; }
 
+/**
+ * Show or hide the ☰ Buy row to match what the server reported. Called after
+ * every usage refresh, so payments can be switched on backend-side without
+ * shipping a new extension build.
+ */
+export function syncPaymentsUI() {
+  if (menuBuyEl) menuBuyEl.hidden = !paymentsEnabled;
+}
+
 export function showLimitWarning(message) {
   showErrorMessage(
     message
@@ -321,5 +330,5 @@ export function showLimitWarning(message) {
   );
   // Running out is the moment buying is actually relevant, so offer it here
   // instead of making them go hunting through the menu.
-  if (buyHandler) showBuyCard(buyHandler);
+  if (paymentsEnabled && buyHandler) showBuyCard(buyHandler);
 }

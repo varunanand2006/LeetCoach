@@ -164,6 +164,13 @@ interface for code feedback, hints, and DSA guidance.
   - practice → **Optimize** (`optimize`) — Big-O time/space of the current code, the optimal bound, and the technique that closes the gap (without implementing it)
   - interview → **Feedback** (`feedback`) — in-character end-of-interview debrief covering approach, code quality, complexity, and the one thing to do differently
 
+## Payments Feature Flag
+- **`PAYMENTS_ENABLED` is a server-side switch, never a shipped constant.** An extension constant would need a new Chrome Web Store package and review to change — days of latency on a business decision. As a Lambda env var it is one `sam deploy`
+- Resolved as `PAYMENTS_ENABLED == 'true'` **and** `STRIPE_SECRET_KEY` non-empty, so a half-configured deploy stays off rather than showing a buy button that 500s
+- Reported to the extension as `paymentsEnabled` in the `usage` response. `setPaymentsEnabled` + `syncPaymentsUI` show/hide the ☰ Buy row; `showLimitWarning` checks it before offering the pack picker
+- **`#menu-buy` carries `hidden` in `sidepanel.html`** and the frontend default is `false`, so a failed usage call leaves the buy UI off. Fails closed, deliberately
+- `create_checkout_session` re-checks the flag server-side, so the mode is dead even if a client reaches it with the UI hidden
+
 ## Stripe Checkout (`create_checkout_session` mode)
 - Sits **above the usage check** alongside `usage` mode — buying prompts must never cost a prompt, and no Bedrock call is involved
 - Body is `{mode: 'create_checkout_session', pack: 'mini'|'small'|'large'}`. `client_reference_id` is set from the **verified Google token**, never from the body
@@ -280,7 +287,7 @@ Test and live mode are **entirely separate accounts** inside Stripe — separate
 - Load extension: chrome://extensions → Developer Mode → Load Unpacked → `extension/`
 - After Lambda changes: `sam build --use-container && sam deploy`
 - After extension changes: refresh extension in chrome://extensions, reload LeetCode tab
-- New extension version: bump `version` in `manifest.json`, zip `extension/` contents (not the folder itself) using `Compress-Archive -Path extension\* -DestinationPath leetcoach-x.x.x.zip` in PowerShell, upload to Chrome Web Store
+- New extension version: bump `version` in `manifest.json`, zip `extension/` contents (**not** the folder itself — a nested `extension/` prefix is rejected) using `Compress-Archive -Path extension\* -DestinationPath leetcoach-x.x.x.zip` in PowerShell, upload to Chrome Web Store
 - Reset usage for a user (PowerShell — escape inner quotes with backslash):
   ```
   aws dynamodb update-item --table-name leetcoach-users --region us-east-1 --no-verify-ssl --key '{\"userId\": {\"S\": \"<userId>\"}}' --update-expression "SET weeklyRequests = :zero" --expression-attribute-values '{\":zero\": {\"N\": \"0\"}}'
@@ -331,11 +338,14 @@ Test and live mode are **entirely separate accounts** inside Stripe — separate
 - [x] Webhook role verified for `TransactWriteItems` via `iam simulate-principal-policy`
 - [x] **Test-mode purchases verified live (2026-07-25)** — two `checkout.session.completed` grants credited 500 each and independently; one `charge.refunded` revoked exactly 500, leaving 500. The revoke proves `payment_intent_data[metadata]` reached the Charge, which is the only way a refund can identify the user. `runtime_client` streaming confirmed working on Python 3.14
 - [x] Orphan `leet-coach` stack deleted; `leetcoach` and `aws-sam-cli-managed-default` are the only stacks left
-- [ ] **Go live** — this is the only remaining work. See "Going Live" below
+- [x] v1.3.0 packaged for the Chrome Web Store (`leetcoach-1.3.0.zip`): CORS scoped to the extension id, payments feature-flagged off, weekly limit 50
+- [ ] **Stripe deferred** — business verification needs US bank access. Turning it on later is `sam deploy --parameter-overrides "PaymentsEnabled=true StripeSecretKey=sk_live_... StripeWebhookSecret=whsec_..."`, then restore the pricing CTAs on the landing page and the Payments section of `docs/privacy.html`. **No Chrome Web Store resubmission needed**
+- [ ] Deploy the CORS change, then **verify a live request from the extension before submitting**
 - [ ] Raise the $10 budget cap before taking any payment — the kill switch can Deny Bedrock for a paying customer
 - [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings
 
-### Over-privileged CORS Configuration
-- **Risk**: The Lambda Function URL currently allows AllowOrigins: '*'. While protected by Google OAuth, this allows any website to make requests to the backend, potentially burning a user's prompt quota.
-- **Mitigation**: Restrict AllowOrigins to chrome-extension:// in 	emplate.yaml once the Extension ID is finalized.
+### CORS (resolved)
+- `AllowOrigins` is now `chrome-extension://mphhiilfiepjpipajkgoehmoncilcmfj`, not `'*'`
+- The id is **deterministic** because `manifest.json` pins a `key` — derived as base16→a-p of `sha256(DER(key))[:16]`, verified to match the store listing, and stable across updates and reinstalls
+- `host_permissions` does **not** cover the Lambda URL, so side-panel calls are genuine cross-origin requests and this header is what the browser enforces. **Any change here must be verified with a live request before publishing** — if the origin doesn't match, every request fails with an opaque CORS error

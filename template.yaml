@@ -17,6 +17,11 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: "Stripe secret key (sk_...). Used only to create Checkout Sessions."
+  PaymentsEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: "Turns the purchase flow on. Reported to the extension in the usage response, so flipping it needs no Chrome Web Store resubmission. Also requires StripeSecretKey to be set."
   StripeWebhookSecret:
     Type: String
     NoEcho: true
@@ -149,12 +154,19 @@ Resources:
           # Creates Checkout Sessions only. The webhook holds its own secret and
           # is what actually grants credits.
           STRIPE_SECRET_KEY: !Ref StripeSecretKey
+          PAYMENTS_ENABLED: !Ref PaymentsEnabled
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
         Cors:
+          # Scoped to the published extension. The id is deterministic because
+          # manifest.json pins a `key`, so it survives updates and reinstalls.
+          # host_permissions does NOT cover this URL, so panel requests are true
+          # cross-origin calls and this header is what the browser enforces.
+          # Requests still need a valid Google token; this stops an arbitrary
+          # site burning a user's quota — which now includes prompts they paid for.
           AllowOrigins:
-            - '*'
+            - 'chrome-extension://mphhiilfiepjpipajkgoehmoncilcmfj'
           AllowHeaders:
             - 'Content-Type'
             - 'Authorization'

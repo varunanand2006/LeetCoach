@@ -36,6 +36,16 @@ SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-
 # ---------------------------------------------------------------------------
 
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+
+# Whether the purchase flow is live. Deliberately a server-side switch reported
+# to the client in the `usage` response, NOT a constant baked into the
+# extension — a shipped constant would need a new Chrome Web Store package and
+# review to change, which is days of latency on a business decision.
+# Requires the key as well as the flag, so a half-configured deploy stays off.
+PAYMENTS_ENABLED = (
+    os.environ.get('PAYMENTS_ENABLED', '').strip().lower() == 'true'
+    and bool(STRIPE_SECRET_KEY)
+)
 # Pinned so a Stripe-side API upgrade can't silently change the response shape.
 STRIPE_API_VERSION = '2024-06-20'
 
@@ -1098,6 +1108,8 @@ def handler(event, context):
                 'weeklyRequests': 0,
                 'purchasedCredits': 0,
                 'weekStartDate': get_week_start(today),
+                # Drives whether the extension shows any buy UI at all.
+                'paymentsEnabled': PAYMENTS_ENABLED,
             }
             if user_id:
                 try:
@@ -1108,6 +1120,7 @@ def handler(event, context):
                             'weeklyRequests': int(item.get('weeklyRequests', 0)),
                             'purchasedCredits': int(item.get('purchasedCredits', 0)),
                             'weekStartDate': item.get('weekStartDate', get_week_start(today)),
+                            'paymentsEnabled': PAYMENTS_ENABLED,
                         }
                 except Exception as e:
                     print(f"DynamoDB error fetching usage: {e}")
@@ -1124,7 +1137,9 @@ def handler(event, context):
                     'message': 'Unknown prompt pack.',
                 })]))
                 return
-            if not STRIPE_SECRET_KEY:
+            # Second gate, so the flag alone disables buying even if a client
+            # somehow reaches this mode with the UI hidden.
+            if not PAYMENTS_ENABLED:
                 _stream_to_runtime(context.aws_request_id, iter([json.dumps({
                     'error': 'checkout_unavailable',
                     'message': 'Purchases are not available right now.',

@@ -28,6 +28,18 @@ export let purchasedCredits = 0;
 export function setPurchasedCredits(count) { purchasedCredits = count; }
 
 /**
+ * Whether the purchase flow is live. **Reported by the server** in the `usage`
+ * response, not baked in here — a shipped constant would need a new Chrome Web
+ * Store package and review to change, so turning payments on would mean waiting
+ * days for a listing update. As a server flag it's one `sam deploy`.
+ *
+ * Starts false and stays false if the usage call fails, so the buy UI is hidden
+ * unless the backend positively says otherwise.
+ */
+export let paymentsEnabled = false;
+export function setPaymentsEnabled(on) { paymentsEnabled = !!on; }
+
+/**
  * Purchasable packs, for display only. Prices mirror `CHECKOUT_PACKS` in
  * lambda_function.py and credit counts mirror `PACKS` in payments/app.py — the
  * server decides both what to charge and what to grant, so nothing here is

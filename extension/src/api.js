@@ -2,9 +2,12 @@
 
 import {
   API_URL, getThisMonday, setWeeklyRequestsUsed, weeklyRequestsUsed,
-  setPurchasedCredits, purchasedCredits, WEEKLY_LIMIT, DIAGRAM_COST, REVIEW_COST,
+  setPurchasedCredits, purchasedCredits, setPaymentsEnabled,
+  WEEKLY_LIMIT, DIAGRAM_COST, REVIEW_COST,
 } from './state.js';
-import { updateUsageIndicator, showLimitWarning, showErrorMessage, scrollToBottom } from './ui.js';
+import {
+  updateUsageIndicator, showLimitWarning, showErrorMessage, scrollToBottom, syncPaymentsUI,
+} from './ui.js';
 import { renderMarkdown } from './markdown.js';
 import { renderDiagramsIn } from './diagram.js';
 
@@ -79,6 +82,10 @@ export async function fetchUsageFromServer(userId) {
     }
 
     const data = JSON.parse(text);
+    // Read before the balance check — the flag is independent of usage numbers.
+    setPaymentsEnabled(data.paymentsEnabled === true);
+    syncPaymentsUI();
+
     if (typeof data.weeklyRequests === 'number') {
       const currentMonday = getThisMonday();
       const count = data.weekStartDate === currentMonday ? data.weeklyRequests : 0;

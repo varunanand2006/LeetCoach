@@ -63,8 +63,10 @@ document.addEventListener('DOMContentLoaded', () => {
     clearChat();
   });
 
+  // Wired unconditionally; visibility is driven by the server flag via
+  // syncPaymentsUI, which runs after each usage refresh. Hidden until then —
+  // the row starts hidden in the markup, so a failed usage call leaves it off.
   setBuyHandler(startCheckout);
-
   menuBuyEl?.addEventListener('click', () => {
     setOverflowOpen(false);
     removeEmptyState();
