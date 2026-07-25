@@ -8,10 +8,27 @@ Parameters:
   GoogleClientId:
     Type: String
     Description: "Google OAuth Client ID for validating Chrome extension users"
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 50
+    Description: "Monthly AWS spend that trips the Bedrock kill switch. Must stay above expected paid-user load — the switch Denies Bedrock for PAYING customers too."
+  StripeSecretKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: "Stripe secret key (sk_...). Used only to create Checkout Sessions."
+  StripeWebhookSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: "Stripe webhook signing secret (whsec_...). The only thing authenticating the webhook URL."
 
 Globals:
   Function:
-    Runtime: python3.11
+    # python3.11 was deprecated 2026-06-30; AWS disabled function *creation* on
+    # 2026-07-31 and updates on 2026-08-31. Both functions here are stdlib +
+    # boto3 with nothing version-sensitive.
+    Runtime: python3.14
     # A review is 1200 max_tokens on Sonnet. A timeout kills the process before
     # the refund path can run, so this needs headroom over the longest reply.
     Timeout: 60
@@ -46,6 +63,26 @@ Resources:
         - AttributeName: problemSlug
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
+
+  # Idempotency ledger for Stripe deliveries. Stripe does not promise
+  # exactly-once, so every processed event id is recorded here in the same
+  # transaction that moves credits — a redelivery then hits the conditional
+  # write and becomes a no-op. Rows expire well after the ~120-day dispute
+  # window, long past the ~3 days Stripe will keep retrying.
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: leetcoach-payments
+      AttributeDefinitions:
+        - AttributeName: eventId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: eventId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
 
   # ---------------------------------------------------------------------------
   # Lambda execution role — declared explicitly so Budget Actions can reference it
@@ -108,6 +145,10 @@ Resources:
 
           HAIKU_MODEL_ID: "us.anthropic.claude-haiku-4-5-20251001-v1:0"
           SONNET_MODEL_ID: "us.anthropic.claude-sonnet-4-6"
+
+          # Creates Checkout Sessions only. The webhook holds its own secret and
+          # is what actually grants credits.
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: RESPONSE_STREAM
@@ -120,6 +161,64 @@ Resources:
 
           AllowMethods:
             - 'POST'
+
+  # ---------------------------------------------------------------------------
+  # Stripe webhook
+  #
+  # Separate from ChatFunction because its URL must be BUFFERED: Stripe decides
+  # whether to retry purely from the HTTP status, and a RESPONSE_STREAM URL
+  # cannot set one. Also has its own role, deliberately without Bedrock — the
+  # billing kill switch attaches a Deny to ChatFunctionExecutionRole only, so
+  # payments keep being recorded correctly even while the AI is shut off.
+  # ---------------------------------------------------------------------------
+
+  PaymentWebhookExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: PaymentDynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # TransactWriteItems authorises against the underlying item
+              # actions, so PutItem/UpdateItem is all it needs.
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:GetItem
+                Resource:
+                  - !GetAtt UsersTable.Arn
+                  - !GetAtt PaymentsTable.Arn
+
+  PaymentWebhookFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: payments/
+      Handler: app.handler
+      Role: !GetAtt PaymentWebhookExecutionRole.Arn
+      # Two small writes. Stripe hangs up on slow endpoints, so failing fast
+      # beats holding the connection open.
+      Timeout: 15
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref UsersTable
+          PAYMENTS_TABLE_NAME: !Ref PaymentsTable
+          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+      FunctionUrlConfig:
+        # Unauthenticated by necessity — Stripe cannot sign IAM requests. The
+        # Stripe-Signature check in app.py is what authenticates callers.
+        AuthType: NONE
+        InvokeMode: BUFFERED
 
   # ---------------------------------------------------------------------------
   # Billing kill switch
@@ -163,9 +262,13 @@ Resources:
                 Action: iam:AttachRolePolicy
                 Resource: !GetAtt ChatFunctionExecutionRole.Arn
 
-  # Budget: $10/month total AWS cost
-  # - Email warning at $7 (70%)
-  # - Kill switch fires at $10 (100%)
+  # Budget: MonthlyBudgetUsd/month total AWS cost
+  # - Email warning at 70%
+  # - Kill switch fires at 100%
+  #
+  # Raised from the original $10 because that ceiling is reached by roughly four
+  # maxed-out free users — once prompts are sold, tripping it takes paid service
+  # away from customers who have already paid for it.
   MonthlyBedrockBudget:
     Type: AWS::Budgets::Budget
     Properties:
@@ -174,7 +277,7 @@ Resources:
         BudgetType: COST
         TimeUnit: MONTHLY
         BudgetLimit:
-          Amount: 10
+          Amount: !Ref MonthlyBudgetUsd
           Unit: USD
       NotificationsWithSubscribers:
         - Notification:
@@ -214,3 +317,6 @@ Outputs:
   UsersTableName:
     Description: "DynamoDB table for user usage tracking"
     Value: !Ref UsersTable
+  PaymentWebhookUrl:
+    Description: "Register this as the endpoint in Stripe (checkout.session.completed, checkout.session.async_payment_succeeded, charge.refunded, charge.dispute.created)"
+    Value: !GetAtt PaymentWebhookFunctionUrl.FunctionUrl

@@ -16,6 +16,26 @@ export function setCoachingMode(mode) { coachingMode = mode; }
 export let weeklyRequestsUsed = 0;
 export function setWeeklyRequestsUsed(count) { weeklyRequestsUsed = count; }
 
+/**
+ * Prompts bought on top of the weekly allowance. Tracked separately from
+ * weeklyRequestsUsed because they don't reset on Monday — mirrors the
+ * purchasedCredits attribute in DynamoDB. The server is authoritative; this is
+ * the optimistic local copy that keeps the UI honest between refreshes.
+ */
+export let purchasedCredits = 0;
+export function setPurchasedCredits(count) { purchasedCredits = count; }
+
+/**
+ * Purchasable packs, for display only. Prices mirror `CHECKOUT_PACKS` in
+ * lambda_function.py and credit counts mirror `PACKS` in payments/app.py — the
+ * server decides both what to charge and what to grant, so nothing here is
+ * trusted. Only `id` is sent.
+ */
+export const PROMPT_PACKS = [
+  { id: 'small', credits: 500, price: '$4.99' },
+  { id: 'large', credits: 1500, price: '$9.99' },
+];
+
 /** Cost in prompts of a request that also produces a diagram. Mirrors DIAGRAM_COST in the Lambda. */
 export const DIAGRAM_COST = 2;
 

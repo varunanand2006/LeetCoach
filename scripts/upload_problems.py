@@ -67,7 +67,11 @@ def upload_to_dynamodb(json_file_path):
 if __name__ == "__main__":
     # Instructions: 
     # 1. Ensure you have the dataset at the path below.
-    # 2. Run: python backend/scripts/upload_problems.py
+    # 2. Run: python scripts/upload_problems.py
+    #
+    # This lives outside backend/ on purpose: backend/ is the Lambda's CodeUri,
+    # so anything in it ships in every deployment package — and the dataset is
+    # 20MB. SAM has no .samignore, so keeping it out of the tree is the only fix.
     
     # Path is relative to the project root if running from there
     script_dir = os.path.dirname(os.path.realpath(__file__))

@@ -2,7 +2,7 @@
 
 import {
   getTabState, setActiveTabId, activeTabId, coachingMode, setCoachingMode,
-  setWeeklyRequestsUsed, getThisMonday, CLEAR_PHRASES, deleteTabState,
+  setWeeklyRequestsUsed, setPurchasedCredits, getThisMonday, CLEAR_PHRASES, deleteTabState,
   saveProblemState, loadProblemState, clearProblemState,
   diagramArmed, setDiagramArmed, DIAGRAM_COST, MAX_RETAINED_HISTORY
 } from './state.js';
@@ -10,11 +10,11 @@ import {
   initDOMElements, updateUsageIndicator, updateHeader, scrollToBottom,
   setInputEnabled, syncHintBadge, syncCoachingToggle, removeEmptyState,
   addEmptyState, createMessageBubble, appendMessage, syncDiagramToggle, remainingPrompts,
-  setOverflowOpen, isOverflowOpen, syncMenuItems,
+  setOverflowOpen, isOverflowOpen, syncMenuItems, showBuyCard, showErrorMessage, setBuyHandler,
   chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnThird, coachingToggleEl,
-  settingsToggleEl, menuDiagramEl, menuReviewEl, menuClearEl, menuResetHintEl
+  settingsToggleEl, menuDiagramEl, menuReviewEl, menuClearEl, menuResetHintEl, menuBuyEl
 } from './ui.js';
-import { fetchUsageFromServer, streamResponse } from './api.js';
+import { fetchUsageFromServer, streamResponse, createCheckoutSession } from './api.js';
 import { renderMarkdown } from './markdown.js';
 import { renderDiagramsIn } from './diagram.js';
 import { getMonacoCode, getSubmissionResult } from './scraper.js';
@@ -61,6 +61,14 @@ document.addEventListener('DOMContentLoaded', () => {
   menuClearEl.addEventListener('click', () => {
     setOverflowOpen(false);
     clearChat();
+  });
+
+  setBuyHandler(startCheckout);
+
+  menuBuyEl?.addEventListener('click', () => {
+    setOverflowOpen(false);
+    removeEmptyState();
+    showBuyCard(startCheckout);
   });
 
   menuResetHintEl.addEventListener('click', () => {
@@ -157,8 +165,23 @@ async function initPanel() {
   } catch (_err) { /* Not on a problem page */ }
 }
 
+/** Shared by the ☰ menu row and the out-of-prompts warning. */
+async function startCheckout(pack, btn) {
+  btn.disabled = true;
+  try {
+    const url = await createCheckoutSession(pack);
+    // A new tab rather than navigating: the side panel has to stay open so the
+    // new balance is visible when they come back from Stripe.
+    await chrome.tabs.create({ url });
+  } catch (err) {
+    showErrorMessage(err?.message || 'Could not start checkout. Please try again.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function loadUsageCount() {
-  const data = await chrome.storage.local.get(['weeklyRequests', 'weekStartDate']);
+  const data = await chrome.storage.local.get(['weeklyRequests', 'weekStartDate', 'purchasedCredits']);
   const currentMonday = getThisMonday();
   if (data.weekStartDate !== currentMonday) {
     setWeeklyRequestsUsed(0);
@@ -166,6 +189,9 @@ async function loadUsageCount() {
   } else {
     setWeeklyRequestsUsed(data.weeklyRequests ?? 0);
   }
+  // Deliberately outside the rollover branch — purchased credits don't expire,
+  // so a new week must leave them untouched.
+  setPurchasedCredits(Math.max(0, data.purchasedCredits ?? 0));
   updateUsageIndicator();
 }
 

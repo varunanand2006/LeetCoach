@@ -1,14 +1,15 @@
 // ui.js - DOM manipulation and UI updates
 
 import {
-  WEEKLY_LIMIT, weeklyRequestsUsed, getTimeUntilResetStr, activeTabId, getTabState,
-  coachingMode, diagramArmed, DIAGRAM_COST, REVIEW_COST, MIN_REVIEW_MESSAGES,
+  WEEKLY_LIMIT, weeklyRequestsUsed, purchasedCredits, getTimeUntilResetStr,
+  activeTabId, getTabState, coachingMode, diagramArmed,
+  DIAGRAM_COST, REVIEW_COST, MIN_REVIEW_MESSAGES, PROMPT_PACKS,
 } from './state.js';
 
 export let chatEl, inputEl, problemNameEl, usageIndicatorEl;
 export let modeBtnHint, modeBtnAnalyze, modeBtnThird, hintLevelBadgeEl;
 export let coachingToggleEl, settingsToggleEl, settingsMenuEl;
-export let menuDiagramEl, menuReviewEl, menuClearEl, menuResetHintEl;
+export let menuDiagramEl, menuReviewEl, menuClearEl, menuResetHintEl, menuBuyEl;
 let usageRingFillEl, menuUsageEl;
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 9; // r=9 in sidepanel.html
@@ -52,6 +53,7 @@ export function initDOMElements() {
   menuReviewEl     = document.getElementById('menu-review');
   menuClearEl      = document.getElementById('menu-clear');
   menuResetHintEl  = document.getElementById('menu-reset-hint');
+  menuBuyEl        = document.getElementById('menu-buy');
   menuUsageEl      = document.getElementById('menu-usage');
 
   if (usageRingFillEl) {
@@ -59,22 +61,40 @@ export function initDOMElements() {
   }
 }
 
-export function remainingPrompts() {
+/** Prompts left in the weekly allowance alone, ignoring anything purchased. */
+export function remainingFreePrompts() {
   return Math.max(0, WEEKLY_LIMIT - weeklyRequestsUsed);
+}
+
+/**
+ * Everything the user can actually spend. Purchased credits count here, so the
+ * diagram toggle and review button stay usable once the weekly allowance is
+ * gone — gating on the weekly number alone would lock out a paying user.
+ */
+export function remainingPrompts() {
+  return remainingFreePrompts() + Math.max(0, purchasedCredits);
 }
 
 export function updateUsageIndicator() {
   if (!usageIndicatorEl) return;
   const remaining = remainingPrompts();
+  const credits = Math.max(0, purchasedCredits);
   const resetStr = getTimeUntilResetStr();
-  usageIndicatorEl.dataset.tooltip = `${weeklyRequestsUsed} / ${WEEKLY_LIMIT} · resets in ${resetStr}`;
+  const creditSuffix = credits > 0 ? ` · ${credits} purchased` : '';
+
+  usageIndicatorEl.dataset.tooltip =
+    `${weeklyRequestsUsed} / ${WEEKLY_LIMIT} weekly${creditSuffix} · resets in ${resetStr}`;
   if (menuUsageEl) {
-    menuUsageEl.textContent = `${remaining} of ${WEEKLY_LIMIT} prompts left · resets in ${resetStr}`;
+    menuUsageEl.textContent =
+      `${remainingFreePrompts()} of ${WEEKLY_LIMIT} prompts left${creditSuffix} · resets in ${resetStr}`;
   }
 
   if (usageRingFillEl) {
+    // The ring is a meter for the weekly allowance specifically, so it fills on
+    // the weekly count even when credits remain. The low/empty states below key
+    // off the spendable total instead — a full ring shouldn't read as "out" to
+    // someone who still has credits to spend.
     const used = Math.min(1, Math.max(0, weeklyRequestsUsed / WEEKLY_LIMIT));
-    // Ring fills clockwise as prompts are consumed.
     usageRingFillEl.style.strokeDashoffset = String(RING_CIRCUMFERENCE * (1 - used));
     usageIndicatorEl.classList.toggle('low', remaining <= 10 && remaining > 0);
     usageIndicatorEl.classList.toggle('empty', remaining === 0);
@@ -188,7 +208,7 @@ export function syncMenuItems() {
   menuReviewEl.title = !enough
     ? `Needs at least ${MIN_REVIEW_MESSAGES} messages to review`
     : !affordable
-      ? `Not enough prompts left this week`
+      ? `Not enough prompts left`
       : 'Full session retrospective';
 
   if (menuResetHintEl) {
@@ -229,9 +249,67 @@ export function showErrorMessage(message) {
   scrollToBottom();
 }
 
+/**
+ * Inline pack picker. `onPick(packId, buttonEl)` runs on click; the button is
+ * passed back so the caller can show progress on the one that was pressed
+ * rather than blanking the whole card.
+ */
+export function showBuyCard(onPick) {
+  // Only one at a time, or repeated menu clicks stack identical cards.
+  chatEl.querySelector('.message.buy-card')?.remove();
+
+  const card = createMessageBubble('buy-card');
+  const title = document.createElement('div');
+  title.className = 'buy-card-title';
+  title.textContent = 'Buy more prompts';
+  const sub = document.createElement('div');
+  sub.className = 'buy-card-sub';
+  sub.textContent = 'Purchased prompts never expire and are used only once your '
+    + 'weekly allowance runs out.';
+  card.append(title, sub);
+
+  for (const pack of PROMPT_PACKS) {
+    const btn = document.createElement('button');
+    btn.className = 'buy-pack';
+    btn.type = 'button';
+
+    const amount = document.createElement('span');
+    amount.className = 'pack-amount';
+    amount.textContent = `${pack.credits.toLocaleString()} prompts`;
+    const price = document.createElement('span');
+    price.className = 'pack-price';
+    price.textContent = pack.price;
+
+    btn.append(amount, price);
+    btn.addEventListener('click', () => onPick(pack.id, btn));
+    card.appendChild(btn);
+  }
+
+  const note = document.createElement('div');
+  note.className = 'buy-card-note';
+  note.textContent = 'Opens Stripe in a new tab. Payment details are handled '
+    + 'entirely by Stripe and never touch this extension.';
+  card.appendChild(note);
+
+  chatEl.appendChild(card);
+  scrollToBottom();
+  return card;
+}
+
+/**
+ * Registered once by index.js. Held here rather than imported so ui.js never
+ * has to reach into api.js — api.js already imports from this module, and the
+ * cycle that would create is exactly the kind that breaks on load order.
+ */
+let buyHandler = null;
+export function setBuyHandler(fn) { buyHandler = fn; }
+
 export function showLimitWarning(message) {
   showErrorMessage(
     message
     || `You've reached your weekly limit of ${WEEKLY_LIMIT} requests. Your limit resets on Monday!`
   );
+  // Running out is the moment buying is actually relevant, so offer it here
+  // instead of making them go hunting through the menu.
+  if (buyHandler) showBuyCard(buyHandler);
 }

@@ -100,11 +100,11 @@ Tables:
 To provide richer coaching (hints, solutions, topics), LeetCoach uses a local DynamoDB table seeded with problem metadata.
 
 **Seeding the database:**
-1. The project includes a pre-configured script: `backend/scripts/upload_problems.py`.
+1. The project includes a pre-configured script: `scripts/upload_problems.py`.
 2. I have already downloaded the `merged_problems.json` dataset from the `neenza/leetcode-problems` repository.
 3. To upload the data to your AWS account, ensure your AWS CLI is configured and run:
    ```bash
-   python backend/scripts/upload_problems.py
+   python scripts/upload_problems.py
    ```
    *Note: This script handles the DynamoDB 400KB item limit by truncating extremely large solutions or descriptions if necessary.*
 

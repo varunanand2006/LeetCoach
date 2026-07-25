@@ -2,6 +2,7 @@ import json
 import os
 import re
 import http.client
+import urllib.parse
 import datetime
 import boto3
 from botocore.exceptions import ClientError
@@ -10,6 +11,15 @@ bedrock = boto3.client('bedrock-runtime', region_name='us-east-1')
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
 WEEKLY_LIMIT = 100
+
+# Which balance a request was charged to. Purchased credits live in their own
+# attribute rather than offsetting weeklyRequests, because the Monday reset
+# overwrites that field outright — credits kept there would be destroyed by the
+# first rollover after purchase.
+BUCKET_FREE = 'free'
+BUCKET_PAID = 'paid'
+BUCKET_NONE = 'none'  # allowed without charging (unauthenticated, or failing open)
+
 TABLE_NAME = os.environ.get('TABLE_NAME', 'leetcoach-users')
 PROBLEMS_TABLE_NAME = os.environ.get('PROBLEMS_TABLE_NAME', 'leetcoach-problems')
 
@@ -19,6 +29,83 @@ _problems_table = dynamodb.Table(PROBLEMS_TABLE_NAME)
 # Model IDs — override via Lambda environment variables when Anthropic deprecates a version
 HAIKU_MODEL_ID = os.environ.get('HAIKU_MODEL_ID', 'us.anthropic.claude-haiku-4-5-20251001-v1:0')
 SONNET_MODEL_ID = os.environ.get('SONNET_MODEL_ID', 'us.anthropic.claude-sonnet-4-6')
+
+
+# ---------------------------------------------------------------------------
+# Stripe Checkout
+# ---------------------------------------------------------------------------
+
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
+# Pinned so a Stripe-side API upgrade can't silently change the response shape.
+STRIPE_API_VERSION = '2024-06-20'
+
+# Where Stripe sends the browser afterwards. The purchase happens in a normal
+# tab (MV3's script-src 'self' rules out Stripe.js in the panel), so these have
+# to be real pages — the GitHub Pages site already exists, so they live there.
+CHECKOUT_SUCCESS_URL = os.environ.get(
+    'CHECKOUT_SUCCESS_URL', 'https://varunanand2006.github.io/LeetCoach/payment-success.html')
+CHECKOUT_CANCEL_URL = os.environ.get(
+    'CHECKOUT_CANCEL_URL', 'https://varunanand2006.github.io/LeetCoach/payment-cancelled.html')
+
+# What each pack costs. **`amountCents` must match PACKS in payments/app.py**,
+# which cross-checks it against what Stripe actually collected and refuses to
+# grant on a mismatch. That check is the safety net, not a suggestion: if these
+# drift, purchases fail loudly rather than granting the wrong number of credits.
+# Credit counts deliberately live only in the webhook — it is what moves them.
+CHECKOUT_PACKS = {
+    'small': {'amountCents': 499, 'label': '500 prompts'},
+    'large': {'amountCents': 999, 'label': '1,500 prompts'},
+}
+
+
+def create_checkout_session(user_id, pack_name):
+    """Create a Stripe Checkout Session. Returns its URL, or raises.
+
+    Prices are sent inline as `price_data` rather than referencing pre-created
+    Price objects, so there is nothing to configure in the Stripe dashboard and
+    no ID to keep in sync with this table.
+    """
+    pack = CHECKOUT_PACKS[pack_name]
+    fields = {
+        'mode': 'payment',
+        'success_url': CHECKOUT_SUCCESS_URL,
+        'cancel_url': CHECKOUT_CANCEL_URL,
+        # How the webhook knows who paid. Never taken from the request body —
+        # this is the id from the verified Google token.
+        'client_reference_id': user_id,
+        'line_items[0][quantity]': '1',
+        'line_items[0][price_data][currency]': 'usd',
+        'line_items[0][price_data][unit_amount]': str(pack['amountCents']),
+        'line_items[0][price_data][product_data][name]': f"LeetCoach — {pack['label']}",
+        'metadata[pack]': pack_name,
+        # Copied onto the PaymentIntent (and so onto the Charge) because refund
+        # and dispute events carry a charge, not a session — without this the
+        # webhook cannot tell whose credits to claw back.
+        'payment_intent_data[metadata][userId]': user_id,
+        'payment_intent_data[metadata][pack]': pack_name,
+    }
+
+    conn = http.client.HTTPSConnection('api.stripe.com', timeout=10)
+    try:
+        conn.request(
+            'POST', '/v1/checkout/sessions',
+            body=urllib.parse.urlencode(fields),
+            headers={
+                'Authorization': f'Bearer {STRIPE_SECRET_KEY}',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Stripe-Version': STRIPE_API_VERSION,
+            },
+        )
+        response = conn.getresponse()
+        payload = json.loads(response.read().decode())
+    finally:
+        conn.close()
+
+    if response.status != 200 or not payload.get('url'):
+        # Log Stripe's message, never return it — it can quote request detail.
+        raise RuntimeError(
+            f"Stripe returned {response.status}: {(payload.get('error') or {}).get('message')}")
+    return payload['url']
 
 
 def get_problem_details(problem_slug):
@@ -62,7 +149,8 @@ GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
 
 # Input validation limits
-VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'optimize', 'feedback', 'review', 'usage'}
+VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'optimize', 'feedback', 'review', 'usage',
+               'create_checkout_session'}
 # A diagram request costs 2 prompts against the weekly limit instead of 1.
 DIAGRAM_COST = 2
 DIAGRAM_TOKEN_BONUS = 300
@@ -82,6 +170,12 @@ MAX_HISTORY_TURNS_REVIEW = 30
 MAX_HISTORY_CONTENT_BYTES = 4_000
 # Modes whose prompts read the problems table. Anything else skips the round trip.
 PROBLEM_CONTEXT_MODES = {'hint', 'analyze', 'optimize'}
+# Modes routed to Haiku, ordered by what a wrong answer costs the user: hint and dsa only
+# point a direction, and feedback is a subjective debrief with no correctness surface.
+# analyze (asserts a bug exists), optimize (asserts a Big-O), review (emits a full solution),
+# and chat (open-ended + tool use) stay on Sonnet. Declarative so a regression is a one-line
+# revert; any request with wantsDiagram still overrides to Sonnet.
+HAIKU_MODES = {'hint', 'dsa', 'feedback'}
 _USERID_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,50}$')
 _SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-]{0,99}$')
 
@@ -429,6 +523,24 @@ def format_constraints(details):
     return f"\nProblem constraints (authoritative — do not guess input sizes):\n{body}\n"
 
 
+# Appended to every mode except review, for the same reason CODE_POLICY is a single
+# dict: brevity drifts the moment each builder owns its own copy. Review is exempt —
+# it's a deliberate long-form retrospective and "one thing at a time" would gut it.
+#
+# NOTE: this is what actually shortens replies and cuts cost, because output is billed
+# on tokens *generated*, not on max_tokens. Lowering max_tokens alone saves nothing and
+# only truncates mid-sentence.
+RESPONSE_STYLE = """
+How to write:
+- Lead with the answer. No preamble, no restating the problem, no closing summary, no filler
+  openers ("Great question", "Let's take a look", "I notice that").
+- Guide, don't lecture. Name the one thing worth thinking about next and stop — they're
+  mid-problem, not reading a tutorial. Leave them something to work out.
+- Where the format below allows several points, lead with the one that unblocks them and cut
+  the rest. A ceiling is not a quota.
+- Say it once, plainly. No hedging or second-guessing. Don't pad one line into a bullet list.
+"""
+
 ALLOWED_DIAGRAM_TYPES = 'flowchart, sequenceDiagram, stateDiagram-v2, classDiagram'
 
 DIAGRAM_DETAIL = {
@@ -469,24 +581,32 @@ visualizes the core idea of what you just said.
 
 
 def build_prompt_for_mode(mode, body):
+    # max_tokens is a truncation guard, NOT a cost lever — output bills on tokens
+    # generated. RESPONSE_STYLE and the per-mode line caps are what shorten replies;
+    # these ceilings just sit far enough above the intended length to never clip one.
     if mode == 'hint':
-        prompt, max_tokens = build_hint_prompt(body), 128
+        prompt, max_tokens = build_hint_prompt(body), 110
     elif mode == 'analyze':
-        prompt, max_tokens = build_analyze_prompt(body), 320
+        prompt, max_tokens = build_analyze_prompt(body), 240
     elif mode == 'dsa':
-        prompt, max_tokens = build_dsa_prompt(body), 256
+        prompt, max_tokens = build_dsa_prompt(body), 180
     elif mode == 'optimize':
-        prompt, max_tokens = build_optimize_prompt(body), 300
+        prompt, max_tokens = build_optimize_prompt(body), 220
     elif mode == 'feedback':
-        prompt, max_tokens = build_feedback_prompt(body), 360
+        prompt, max_tokens = build_feedback_prompt(body), 260
     elif mode == 'review':
         # Falls through to the diagram augmentation below like every other mode.
         # Previously the instruction was inlined here and the augmentation skipped,
         # which meant no token bonus — the report ran out of budget mid-fence and
         # the panel showed a diagram placeholder that never resolved.
-        prompt, max_tokens = build_review_prompt(body), 900
+        prompt, max_tokens = build_review_prompt(body), 750
     else:
-        prompt, max_tokens = build_chat_prompt(body), 400  # 'chat' or unknown
+        prompt, max_tokens = build_chat_prompt(body), 320  # 'chat' or unknown
+
+    # Review is exempt: it's a deliberate long-form retrospective, and "lead with one
+    # thing and drop the rest" would gut a report that's meant to have five sections.
+    if mode != 'review':
+        prompt += RESPONSE_STYLE
 
     if body.get('wantsDiagram'):
         prompt = append_diagram_instruction(prompt, body.get('coachingMode', 'learn'))
@@ -552,11 +672,8 @@ Hint level {hint_level}/3
 Your task: {instruction}
 
 Rules:
-- No preamble or summary.
-- Get straight to the point in a simple, easily understandable way
 - Never reveal the complete algorithm.
-- Be confident — state it once and stop. No second-guessing or mid-response revisions.
-- Give small tips if the user is close to a solution, larger tips if the user is stuck
+- Small nudge if they're close, a bigger one if they're stuck.
 - Use {language} naming conventions for any data structure references.
 """
 
@@ -583,12 +700,13 @@ def build_analyze_prompt(body):
     return preamble + format_constraints(body.get('problemContext')) + f"""
 {coaching_rule}
 
-3 bullets max, one short line each. Skip any section with no issue:
-- **Correctness:** logic correct? If there's a submission failure, diagnose it. Include line numbers where possible.
+Max 3 bullets, one line each. Skip any section with no issue — three bullets is a ceiling,
+not a quota, and one real problem beats three padded ones:
+- **Correctness:** logic correct? If there's a submission failure, diagnose it. Cite the line number.
 - **Complexity:** Big-O time and space. Judge "is it optimal?" against the stated constraints, not in the abstract.
-- **Edge cases:** any obvious gaps. Prefer gaps the constraints actually permit — do not raise a case the constraints rule out.
+- **Edge cases:** any obvious gaps. Only ones the constraints actually permit — never raise a case they rule out.
 
-No rewrites, no full solutions. Be confident — state each point once and stop. Use ```{language} fences for any code. {language} only.
+No rewrites, no full solutions. Use ```{language} fences for any code. {language} only.
 """
 
 
@@ -626,21 +744,20 @@ def build_optimize_prompt(body):
     return preamble + format_constraints(body.get('problemContext')) + f"""
 {CODE_POLICY[coaching_mode]}
 
-Review the efficiency of the user's current code. 4 short lines max, one line each:
+Review the efficiency of the user's current code. 3 lines max, one line each:
 - **Now:** Big-O time and space as written, plus what drives each.
 - **Best:** the optimal time and space for this problem.
 - **Gap:** if not optimal, name the technique that closes it — do NOT implement it.
 
-Ground every verdict in the stated constraints: work out roughly what the largest input costs at the
-current complexity and say plainly whether that passes. "O(n^2) with n up to 10^5 is ~10^10 ops, too
-slow" beats "this could be faster". If the constraints are small enough that the current code is
-fine, say that instead of chasing a better bound it doesn't need.
+Ground the verdict in the stated constraints: work out roughly what the largest input costs at the
+current complexity and say plainly whether it passes. "O(n^2) with n up to 10^5 is ~10^10 ops, too
+slow" beats "this could be faster". If the constraints make the current code fine, say so rather
+than chasing a bound it doesn't need.
 
 If it's already optimal, say so in one line and stop.
 
-Be direct and specific to their code — no generic advice. No preamble. Short sentences.
-If the last submission was TLE or MLE, treat that as the primary signal and lead with it.
-Use {language} naming conventions.
+Be specific to their code — no generic advice. If the last submission was TLE or MLE, that's the
+primary signal: lead with it. Use {language} naming conventions.
 """
 
 
@@ -654,15 +771,15 @@ def build_feedback_prompt(body):
 You are a senior engineer delivering end-of-interview feedback. Address the candidate directly and
 stay in character — this is the debrief a real interviewer gives, not a code review document.
 
-5 short lines max, one line each:
+4 lines max, one line each:
 - **Approach:** was the strategy sound?
 - **Code quality:** the one thing that stood out, good or bad.
 - **Complexity:** Big-O time and space, and whether it's optimal.
 - **Do differently:** the single most valuable change.
 
-Close with a one-line overall read.
+Then a one-line overall read. Nothing after it.
 
-Be honest and specific — vague praise is useless. Keep every line short.
+Be honest and specific — vague praise is useless.
 """
 
 
@@ -679,7 +796,8 @@ This report is a RETROSPECTIVE. Unlike every other mode, you may show the comple
 and explain it in full. The user has finished; withholding now would be unhelpful.
 
 Keep the whole report tight — a user reads this in a 400px panel, so short sentences and no padding.
-Structure it with these headings exactly, in this order:
+No preamble before the first heading and no summary after the last. Structure it with these headings
+exactly, in this order:
 
 ## The problem
 One line: what it's really testing.
@@ -728,13 +846,11 @@ def build_chat_prompt(body):
 {coaching_rule}
 
 Rules:
-- Be concise. 1-2 sentences unless the question genuinely requires more.
-- Be confident — state your answer once and stop. Never second-guess or revise mid-response.
+- 1-2 sentences. Go longer only when the question genuinely cannot be answered in two.
 - Recommend specific DS/algorithm variants, not generic advice.
-- No preamble, no summary.
 - {language} only for any code.
 - get_solution tool: use only when genuinely unsure about the optimal approach. Never reproduce the full solution.
-- Markdown: ```{language} fences for code, **bold** key terms, bullets for multi-part answers.
+- Markdown: ```{language} fences for code, **bold** key terms. Bullets only for genuinely multi-part answers.
 """
 
 
@@ -766,15 +882,45 @@ def get_week_start(d=None):
     return (d - datetime.timedelta(days=d.weekday())).isoformat()
 
 
-def check_and_update_usage(user_id, cost=1):
-    """Returns True if the request is allowed, False if weekly limit exceeded.
+def _spend_purchased_credits(user_id, cost, today):
+    """Atomically draw `cost` from the purchased balance. True if it covered it.
 
-    `cost` is how many prompts this request consumes (diagram requests cost 2).
-    DynamoDB can't do arithmetic inside a ConditionExpression, so the threshold
-    is precomputed here: a request is allowed iff weeklyRequests <= LIMIT - cost.
+    The condition fails when purchasedCredits is absent, which is exactly right
+    for a user who has never bought anything — no backfill needed on existing rows.
+    """
+    try:
+        _table.update_item(
+            Key={'userId': user_id},
+            UpdateExpression='SET lastSeen = :today ADD purchasedCredits :neg, totalRequests :cost',
+            ConditionExpression='purchasedCredits >= :cost',
+            ExpressionAttributeValues={':neg': -cost, ':cost': cost, ':today': today},
+        )
+        return True
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
+            return False
+        raise
+
+
+def check_and_update_usage(user_id, cost=1):
+    """Charge `cost` prompts and report which balance paid for them.
+
+    Returns BUCKET_FREE or BUCKET_PAID when the request is allowed, BUCKET_NONE
+    when it is allowed without being charged (unauthenticated, or DynamoDB is
+    down and we're failing open), and None when the user is out of prompts.
+
+    The caller must hand the return value back to refund_usage, so a failed
+    request is credited to the balance it was actually taken from — refunding a
+    purchased credit into the weekly counter would quietly destroy it on Monday.
+
+    The weekly allowance is always spent before purchased credits, so credits
+    can't evaporate at the reset while free prompts sat unused. `cost` is how
+    many prompts this request consumes (diagrams 2, reviews 5). DynamoDB can't
+    do arithmetic inside a ConditionExpression, so the threshold is precomputed
+    here: the free bucket covers the request iff weeklyRequests <= LIMIT - cost.
     """
     if not user_id:
-        return True
+        return BUCKET_NONE
     try:
         today_date = datetime.date.today()
         today = today_date.isoformat()
@@ -785,35 +931,49 @@ def check_and_update_usage(user_id, cost=1):
         item = result.get('Item')
 
         if item is None:
-            _table.put_item(Item={
-                'userId': user_id,
-                'weeklyRequests': cost,
-                'totalRequests': cost,
-                'weekStartDate': current_monday,
-                'firstSeen': today,
-                'lastSeen': today,
-                'tier': 'free',
-            })
-            return True
+            try:
+                _table.put_item(
+                    Item={
+                        'userId': user_id,
+                        'weeklyRequests': cost,
+                        'totalRequests': cost,
+                        'weekStartDate': current_monday,
+                        'firstSeen': today,
+                        'lastSeen': today,
+                        'tier': 'free',
+                    },
+                    ConditionExpression='attribute_not_exists(userId)',
+                )
+                return BUCKET_FREE
+            except ClientError as e:
+                if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+                    raise
+                # The row appeared between the read and the write — most likely
+                # the payment webhook creating it to grant credits. Re-read and
+                # carry on rather than overwriting, or the purchase is erased.
+                item = _table.get_item(Key={'userId': user_id}).get('Item') or {}
 
         if item.get('weekStartDate') != current_monday:
             # New week — reset weekly counter. ConditionExpression prevents a
             # double-reset if two concurrent requests both saw the old weekStartDate.
+            # The attribute_not_exists arm covers a row the webhook created, which
+            # carries credits but none of the usage fields.
             try:
                 _table.update_item(
                     Key={'userId': user_id},
                     UpdateExpression='SET weeklyRequests = :cost, weekStartDate = :monday, lastSeen = :today ADD totalRequests :cost',
-                    ConditionExpression='weekStartDate <> :monday',
+                    ConditionExpression='attribute_not_exists(weekStartDate) OR weekStartDate <> :monday',
                     ExpressionAttributeValues={':cost': cost, ':monday': current_monday, ':today': today},
                 )
-                return True
+                return BUCKET_FREE
             except ClientError as e:
                 if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
                     raise
                 # Concurrent request already reset this week; fall through to normal increment
 
         elif item.get('weeklyRequests', 0) > threshold:
-            return False
+            # Weekly allowance is spent — fall back to anything they've bought.
+            return BUCKET_PAID if _spend_purchased_credits(user_id, cost, today) else None
 
         # ConditionExpression makes the limit check and the increment atomic,
         # eliminating the TOCTOU race between the get_item above and this write.
@@ -821,36 +981,49 @@ def check_and_update_usage(user_id, cost=1):
             _table.update_item(
                 Key={'userId': user_id},
                 UpdateExpression='SET lastSeen = :today ADD weeklyRequests :cost, totalRequests :cost',
-                ConditionExpression='weeklyRequests <= :threshold',
+                ConditionExpression='attribute_not_exists(weeklyRequests) OR weeklyRequests <= :threshold',
                 ExpressionAttributeValues={':cost': cost, ':today': today, ':threshold': threshold},
             )
         except ClientError as e:
             if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
-                return False
+                return BUCKET_PAID if _spend_purchased_credits(user_id, cost, today) else None
             raise
-        return True
+        return BUCKET_FREE
 
     except Exception as e:
         print(f"DynamoDB error (failing open): {e}")
-        return True
+        return BUCKET_NONE
 
 
-def refund_usage(user_id, cost):
+def refund_usage(user_id, cost, bucket=BUCKET_FREE):
     """Give prompts back for a request that was debited but never answered.
+
+    `bucket` is what check_and_update_usage returned, so the refund lands in the
+    balance that was actually charged. Crediting a purchased prompt back to the
+    weekly counter would destroy it at the next reset, and crediting a free
+    prompt to the purchased balance would hand out paid credit for nothing.
+    BUCKET_NONE is a no-op because no charge ever landed.
 
     Usage is charged before Bedrock runs, so without this a throttle or model
     error silently costs the user — 5 of their 100 for a review. Note this
     cannot cover a function timeout: that kills the process outright, so the
     only defence there is a Timeout with enough headroom for the longest reply.
-    The ConditionExpression stops a refund driving the counter negative.
+    The ConditionExpression stops a refund driving a counter negative.
     """
-    if not user_id or cost <= 0:
+    if not user_id or cost <= 0 or bucket not in (BUCKET_FREE, BUCKET_PAID):
         return
+    if bucket == BUCKET_PAID:
+        # purchasedCredits is being credited so it can't go negative; totalRequests can.
+        update = 'ADD purchasedCredits :cost, totalRequests :neg'
+        condition = 'totalRequests >= :cost'
+    else:
+        update = 'ADD weeklyRequests :neg, totalRequests :neg'
+        condition = 'weeklyRequests >= :cost'
     try:
         _table.update_item(
             Key={'userId': user_id},
-            UpdateExpression='ADD weeklyRequests :neg, totalRequests :neg',
-            ConditionExpression='weeklyRequests >= :cost',
+            UpdateExpression=update,
+            ConditionExpression=condition,
             ExpressionAttributeValues={':neg': -cost, ':cost': cost},
         )
     except ClientError as e:
@@ -920,7 +1093,11 @@ def handler(event, context):
 
         if mode == 'usage':
             today = datetime.date.today()
-            usage_data = {'weeklyRequests': 0, 'weekStartDate': get_week_start(today)}
+            usage_data = {
+                'weeklyRequests': 0,
+                'purchasedCredits': 0,
+                'weekStartDate': get_week_start(today),
+            }
             if user_id:
                 try:
                     result = _table.get_item(Key={'userId': user_id})
@@ -928,11 +1105,42 @@ def handler(event, context):
                     if item:
                         usage_data = {
                             'weeklyRequests': int(item.get('weeklyRequests', 0)),
+                            'purchasedCredits': int(item.get('purchasedCredits', 0)),
                             'weekStartDate': item.get('weekStartDate', get_week_start(today)),
                         }
                 except Exception as e:
                     print(f"DynamoDB error fetching usage: {e}")
             _stream_to_runtime(context.aws_request_id, iter([json.dumps(usage_data)]))
+            return
+
+        # Buying prompts must never cost a prompt, so this sits above the usage
+        # check alongside `usage` mode. No Bedrock call is involved either.
+        if mode == 'create_checkout_session':
+            pack_name = body.get('pack')
+            if pack_name not in CHECKOUT_PACKS or not user_id:
+                _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                    'error': 'invalid_request',
+                    'message': 'Unknown prompt pack.',
+                })]))
+                return
+            if not STRIPE_SECRET_KEY:
+                _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                    'error': 'checkout_unavailable',
+                    'message': 'Purchases are not available right now.',
+                })]))
+                return
+            try:
+                checkout_url = create_checkout_session(user_id, pack_name)
+            except Exception as e:
+                print(f"Stripe checkout session failed for {user_id}: {e}")
+                _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                    'error': 'checkout_unavailable',
+                    'message': "Couldn't reach Stripe. Please try again.",
+                })]))
+                return
+            _stream_to_runtime(context.aws_request_id, iter([json.dumps({
+                'checkoutUrl': checkout_url,
+            })]))
             return
 
         wants_diagram = body.get('wantsDiagram', False)
@@ -945,16 +1153,19 @@ def handler(event, context):
         else:
             cost = 1
 
-        if not check_and_update_usage(user_id, cost):
+        # The weekly allowance is spent first, then any purchased credits. The
+        # bucket that paid has to survive down to the refund path below.
+        charged_bucket = check_and_update_usage(user_id, cost)
+        if charged_bucket is None:
             if mode == 'review':
-                detail = f"A review report costs {REVIEW_COST} prompts and you don't have enough left this week."
+                detail = f"A review report costs {REVIEW_COST} prompts and you don't have that many left."
             elif wants_diagram:
-                detail = f"A diagram costs {DIAGRAM_COST} prompts and you don't have enough left this week."
+                detail = f"A diagram costs {DIAGRAM_COST} prompts and you don't have that many left."
             else:
-                detail = f"You've reached your weekly limit of {WEEKLY_LIMIT} requests."
+                detail = f"You've used all {WEEKLY_LIMIT} of your weekly prompts."
             _stream_to_runtime(context.aws_request_id, iter([json.dumps({
                 'error': 'weekly_limit_reached',
-                'message': f"{detail} Your limit resets on Monday.",
+                'message': f"{detail} Your weekly prompts reset on Monday.",
                 'limit': WEEKLY_LIMIT,
                 'cost': cost,
             })]))
@@ -971,8 +1182,8 @@ def handler(event, context):
         # Mermaid syntax is unforgiving and a parse error wastes a paid request,
         # so diagram requests always go to the stronger model.
         model_id = (
-            SONNET_MODEL_ID if (wants_diagram or mode not in ('hint', 'dsa'))
-            else HAIKU_MODEL_ID
+            HAIKU_MODEL_ID if (mode in HAIKU_MODES and not wants_diagram)
+            else SONNET_MODEL_ID
         )
 
         try:
@@ -993,7 +1204,7 @@ def handler(event, context):
                 )
                 _stream_to_runtime(context.aws_request_id, _bedrock_text_chunks(response['body']))
         except Exception:
-            refund_usage(user_id, cost)
+            refund_usage(user_id, cost, charged_bucket)
             raise
 
     except Exception as e:
