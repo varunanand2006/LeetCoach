@@ -398,6 +398,9 @@ async function handleModeRequest(mode) {
     },
     code: context?.code ?? '',
     language: context?.language ?? null,
+    // Needed by hint/analyze/optimize — it's how the backend looks up the
+    // problem's official hints and constraints.
+    slug: context?.slug ?? null,
     submissionResult: context?.submissionResult ?? null,
     userId: context?.userId ?? null,
     coachingMode,

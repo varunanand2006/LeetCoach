@@ -12,7 +12,9 @@ Parameters:
 Globals:
   Function:
     Runtime: python3.11
-    Timeout: 30
+    # A review is 1200 max_tokens on Sonnet. A timeout kills the process before
+    # the refund path can run, so this needs headroom over the longest reply.
+    Timeout: 60
     MemorySize: 256
 
 Resources:

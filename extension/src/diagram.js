@@ -61,7 +61,15 @@ export function isSupportedDiagram(src) {
  */
 async function renderOne(placeholder) {
   const src = placeholder.dataset.src;
-  if (!src) return;
+
+  // No source on a finished stream means the fence was never closed — the reply
+  // hit its token ceiling mid-diagram. Say so instead of spinning forever.
+  if (!src) {
+    placeholder.textContent = 'Diagram was cut off.';
+    placeholder.classList.remove('pending');
+    placeholder.classList.add('failed');
+    return;
+  }
 
   const fail = (note) => {
     const pre = document.createElement('pre');

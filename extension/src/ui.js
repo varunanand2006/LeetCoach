@@ -130,11 +130,7 @@ export function syncDiagramToggle() {
   menuDiagramEl.classList.toggle('checked', diagramArmed);
   menuDiagramEl.setAttribute('aria-checked', String(diagramArmed));
   menuDiagramEl.disabled = !diagramArmed && !affordable;
-  menuDiagramEl.title = !affordable && !diagramArmed
-    ? `Needs ${DIAGRAM_COST} prompts · ${remainingPrompts()} left`
-    : diagramArmed
-      ? 'On for your next reply · click to cancel'
-      : `Adds a diagram, costs ${DIAGRAM_COST} prompts instead of 1`;
+  menuDiagramEl.title = 'Adds diagram';
 
   // The armed state has to stay visible after the menu closes, so it also
   // shows in the placeholder — the menu row alone isn't enough.
@@ -192,7 +188,7 @@ export function syncMenuItems() {
   menuReviewEl.title = !enough
     ? `Needs at least ${MIN_REVIEW_MESSAGES} messages to review`
     : !affordable
-      ? `Needs ${REVIEW_COST} · ${remainingPrompts()} left`
+      ? `Not enough prompts left this week`
       : 'Full session retrospective';
 
   if (menuResetHintEl) {
@@ -224,11 +220,18 @@ export function appendMessage(role, text) {
   scrollToBottom();
 }
 
-export function showLimitWarning(message) {
+/** Inline notice in the chat flow — used for both quota and failure messages. */
+export function showErrorMessage(message) {
   const el = document.createElement('div');
   el.classList.add('message', 'warning');
-  el.textContent = message
-    || `You've reached your weekly limit of ${WEEKLY_LIMIT} requests. Your limit resets on Monday!`;
+  el.textContent = message;
   chatEl.appendChild(el);
   scrollToBottom();
+}
+
+export function showLimitWarning(message) {
+  showErrorMessage(
+    message
+    || `You've reached your weekly limit of ${WEEKLY_LIMIT} requests. Your limit resets on Monday!`
+  );
 }

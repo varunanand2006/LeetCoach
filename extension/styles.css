@@ -83,7 +83,7 @@ html, body {
 #settings-menu button,
 #settings-menu .menu-row {
   display: grid;
-  grid-template-columns: 18px 1fr auto;
+  grid-template-columns: 18px 1fr;
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -116,22 +116,6 @@ html, body {
 }
 .mi-icon svg { width: 16px; height: 16px; }
 .mi-text { line-height: 1.35; }
-
-.mi-cost {
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: 700;
-  color: #ffa116;
-  background: rgba(255, 161, 22, 0.14);
-  border: 1px solid rgba(255, 161, 22, 0.4);
-  border-radius: 9px;
-  padding: 1px 6px;
-}
-#settings-menu button:disabled .mi-cost {
-  color: #7a7a7a;
-  border-color: #3a3a3a;
-  background: none;
-}
 
 /* Diagram row while armed — must read as checked at a glance. */
 #menu-diagram.checked { background: rgba(255, 161, 22, 0.16); color: #ffa116; }
@@ -331,7 +315,14 @@ html, body {
 }
 
 #usage-indicator { cursor: default; }
-.icon-btn { cursor: pointer; }
+.icon-btn {
+  cursor: pointer;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 4px 6px;
+  transition: opacity 0.15s, filter 0.15s, border-color 0.15s, color 0.15s;
+}
+.icon-btn:hover { border-color: #4a4a4a; }
 
 #usage-indicator:hover, .icon-btn:hover {
   opacity: 1;
@@ -341,8 +332,11 @@ html, body {
 #settings-toggle:hover,
 #settings-toggle.active {
   opacity: 1;
-  color: #ffd426;
-  filter: drop-shadow(0 0 5px rgba(255, 212, 38, 0.8));
+  color: #ffa116;
+  border-color: #ffa116;
+  /* grayscale(0%) rather than dropping the filter entirely — the base .icon-btn
+     rule greyscales, which would mute the gold while the menu is open but unhovered. */
+  filter: grayscale(0%);
 }
 
 #usage-indicator::after, .icon-btn::after {

@@ -43,7 +43,7 @@ interface for code feedback, hints, and DSA guidance.
 - `src/index.js` — entry point and orchestrator: event wiring, per-tab state, navigation detection, request building
 - `src/state.js` — centralized state (per-tab history, coaching mode, usage count, diagram arm flag, storage helpers)
 - `src/ui.js` — DOM refs and rendering (usage ring, coaching cycle button, settings menu, swappable third mode button)
-- `src/api.js` — Lambda fetch, streaming, Google auth token, usage increment
+- `src/api.js` — Lambda fetch, streaming, Google auth token, usage increment, error/retry handling
 - `src/markdown.js` — markdown → HTML with Prism highlighting; turns ```mermaid fences into placeholder divs
 - `src/diagram.js` — lazy Mermaid import and SVG rendering, click-to-expand overlay, failure fallback
 - `src/scraper.js` — Monaco/CM6 code reading and submission result reading (MAIN world)
@@ -55,6 +55,7 @@ interface for code feedback, hints, and DSA guidance.
 - Everything else lives in `#settings-menu`, one `[icon] [one-liner] [cost]` row per line: diagram toggle, Review this session, Reset hint level, Clear this chat, and a usage row using the ring icon
 - **`#settings-menu` must be `position: fixed`**, not absolute: `#app` is the scroll container, so an absolutely positioned menu scrolls away from the button that opened it
 - The diagram row keeps its checked state visible after the menu closes via the input placeholder — the menu row alone isn't enough. Clicking it does NOT close the menu (`stopPropagation`), so the check is visible before dismissing
+- Header buttons carry a subtle `1px #333` outline; the hamburger turns brand orange (`#ffa116`) on hover and while open. Costs are deliberately NOT shown as badges in the menu
 - Tooltips are noun phrases, not sentences — "Runtime analysis", not "Review runtime, memory, and Big-O complexity". Note that `syncThirdButton` overwrites the third button's `title` from the `THIRD_BUTTON` table, so editing the HTML `title` alone has no effect
 - `/clear` and `/reset` still work as typed commands; the menu's Clear this chat calls the same `clearChat()`
 - An earlier iteration used a segmented Learn/Practice/Interview row and a header ✨ — both were reverted in favour of the icon-only cycle button and moving the diagram toggle into the menu
@@ -64,7 +65,8 @@ interface for code feedback, hints, and DSA guidance.
 - Disabled below `MIN_REVIEW_MESSAGES` (6) history entries — a retrospective on a near-empty conversation is a guaranteed waste of 5 prompts
 - The only button mode that sends `history`; needs up to 30 entries, so `MAX_RETAINED_HISTORY` (30) governs frontend retention and `MAX_HISTORY_TURNS_REVIEW` (30) the backend cap. Chat stays at 10 — a 30-turn history on every chat turn would inflate input token cost on the most-used path
 - **Deliberately exempt from `CODE_POLICY`** — it's a retrospective, so it may show the complete optimal solution regardless of coaching mode. The prompt is identical in all three modes
-- Always includes a diagram (built into the prompt, not the menu arm). An armed toggle is ignored for review so the cost stays a flat 5 and the diagram instruction isn't duplicated
+- Diagram is optional and off by default — arm it from the menu like any other mode. Cost stays a flat 5 either way: the diagram used to be bundled into that price, so charging 5+2 would be a rise
+- The diagram was originally inlined in the review prompt with the augmentation skipped, so it got no token bonus. The report exhausted its budget mid-fence and the panel showed a 'Drawing diagram…' placeholder that never resolved. Review now falls through the normal `wantsDiagram` path
 - Renders as a normal inline assistant bubble, so history persistence and diagram redraw work for free
 
 ## Diagrams
@@ -77,7 +79,7 @@ interface for code feedback, hints, and DSA guidance.
 - Diagram requests always route to Sonnet, even for hint/dsa — Mermaid syntax errors waste a paid request
 - Detail is tuned by coaching mode: fully labeled in Learn, sparse in Practice, skeletal in Interview
 - **Only four diagram types are vendored**: flowchart, sequenceDiagram, stateDiagram-v2, classDiagram. mindmap/architecture were excluded on purpose — they pull in cytoscape, which needs `eval` and would violate the MV3 CSP (`script-src 'self'`). `diagram.js` rejects unsupported types before calling mermaid
-- Rendering happens only after the stream closes (partial Mermaid never parses). An unterminated fence shows a "Drawing diagram…" placeholder
+- Rendering happens only after the stream closes (partial Mermaid never parses). An unterminated fence shows a "Drawing diagram…" placeholder mid-stream; if it is still unterminated when the stream ends, it resolves to "Diagram was cut off." rather than spinning forever
 - Render failures degrade to the raw source as a code block, never retried — a retry would silently charge another 2 prompts
 - Mermaid source is stored in history, so diagrams redraw on reload/tab switch
 - To re-vendor after a mermaid upgrade: `npm pack mermaid@11`, then walk the ESM graph from `mermaid.esm.min.mjs` following all static imports plus dynamic imports matching the four allowed types, and copy only the reachable files
@@ -93,15 +95,35 @@ interface for code feedback, hints, and DSA guidance.
   - `userId`: overwritten server-side from the verified Google token; never trusted from the body
   - `coachingMode`: `"learn"` | `"practice"` | `"interview"`
   - `wantsDiagram`: bool — costs 2 prompts and appends a Mermaid diagram request
+  - `slug`: sent by chat (for the `get_solution` tool) and by hint/analyze/optimize (for the problems-table lookup). Validated against `^[a-z0-9][a-z0-9\-]{0,99}$`
 - Returns: streamed plain text via chunked transfer encoding to Lambda Runtime API
 - Model routing: hint + dsa → `us.anthropic.claude-haiku-4-5-20251001-v1:0`; everything else → `us.anthropic.claude-sonnet-4-6` (the `us.` prefix enables cross-region inference routing). Any request with `wantsDiagram` overrides to Sonnet
 - Model IDs overridable via `HAIKU_MODEL_ID` / `SONNET_MODEL_ID` Lambda env vars — update these when Anthropic deprecates a version, no code change needed
-- Token budgets: hint 128, dsa 256, optimize 300, analyze 320, feedback 360, chat 400, review 900; `+300` when `wantsDiagram` (review is exempt — its diagram is already in the prompt).
+- Token budgets: hint 128, dsa 256, optimize 300, analyze 320, feedback 360, chat 400, review 900; `+300` when `wantsDiagram` (review included).
 - Budgets were deliberately trimmed once: long replies were overwhelming to read in a 400px panel. Prompts also cap line counts explicitly (optimize 4 lines, feedback 5, analyze 3 bullets) — raising `max_tokens` alone will not make replies longer
 - `usage` mode: reads DynamoDB, streams `{weeklyRequests, weekStartDate}` as JSON — does NOT count against limit
 - `check_and_update_usage(user_id, cost=1)`: called before every Bedrock call; `cost` is 2 for diagram requests. Allows the request iff `weeklyRequests <= WEEKLY_LIMIT - cost` — the threshold is precomputed in Python because DynamoDB can't do arithmetic inside a `ConditionExpression`. Always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday; the `ConditionExpression` makes the limit check + increment atomic (eliminates TOCTOU race on concurrent requests)
 - `WEEKLY_LIMIT = 100` (named constant, easy to change)
-- `validate_and_sanitize_body()`: called on every request before processing; truncates oversized fields (code: 10KB, description: 5KB, message: 2KB), limits history to last 10 turns, clamps hintLevel to 1–3, coerces `wantsDiagram` to a strict bool, validates userId against `^[a-zA-Z0-9_\-\.]{1,50}$` (sets to null if invalid)
+- `refund_usage(user_id, cost)`: usage is debited *before* Bedrock runs, so any failure after that point would silently cost the user (5 of 100 for a review). The Bedrock call is wrapped and refunds on exception. A `ConditionExpression` stops the counter going negative. **It cannot cover a Lambda timeout** — that kills the process outright, which is why `Timeout` is 60s (a review is 1200 max_tokens on Sonnet) rather than the original 30s
+- `validate_and_sanitize_body()`: called on every request before processing; truncates oversized fields (code: 10KB, description: 5KB, message: 2KB), clamps hintLevel to 1–3, coerces `wantsDiagram` to a strict bool, validates userId against `^[a-zA-Z0-9_\-\.]{1,50}$` (sets to null if invalid)
+- `_sanitize_history()`: history originates in `chrome.storage.local`, so it's as untrusted as any other client field. Drops non-dict entries, bad roles, and non-string content; clips each turn to `MAX_HISTORY_CONTENT_BYTES` (4KB) — capping turn *count* alone leaves input token cost unbounded. It also **guarantees the shape Bedrock requires**: alternating roles, starting `user`, and never ending `user` (because `build_messages` appends the current user turn — two user messages in a row is a 400 that surfaces as a generic internal error)
+
+## Problems Table (`leetcoach-problems`)
+- Populated by `backend/scripts/upload_problems.py` from a LeetCode dataset. Per item: `problemSlug` (key), `problemId`, `title`, `difficulty`, `topicTags`, `description`, `solutions`, `hints`, `examples`, `constraints`, `codeSnippets`
+- Two distinct readers, deliberately kept separate:
+  - `get_solution` **tool** (`GET_SOLUTION_TOOL`) — chat mode only, wired through `_chat_tool_chunks`, max 1 tool call per turn. Reads `solutions` via `get_problem_details()`. The model decides when to reach for it
+  - `get_problem_context()` — a plain lookup for hint/analyze/optimize (`PROBLEM_CONTEXT_MODES`), no model turn involved. Uses a **narrow `ProjectionExpression`** (`hints`, `constraints`) because `solutions` on one item can run to 100KB and none of these modes need it. Projected through `ExpressionAttributeNames` since attribute names here collide with DynamoDB reserved words
+- Fetched *after* the usage check, so a rejected request never pays for the read
+- **Hints are level-gated**: LeetCode's official hints run least to most specific, which maps directly onto hint levels 1–3, so level N injects the first N hints and no more. The prompt tells the model to treat them as ground truth for direction but not to quote or dump them
+- **Constraints feed analyze and optimize**: they turn the complexity verdict from a guess into arithmetic ("O(n²) with n up to 10^5 is ~10^10 ops"). Analyze also uses them to avoid raising edge cases the constraints rule out
+- All of this degrades silently — every formatter returns `''` when the problem isn't in the table, so prompts are unchanged for problems that aren't covered
+
+## Frontend Error Handling and Auth (`src/api.js`)
+- A streaming Lambda can't set a status code, so **every** backend error arrives as a JSON body with HTTP 200. `parseErrorPayload()` checks the completed response for an `error` key; `streamResponse` bails on any of them, not just `weekly_limit_reached`
+- This matters beyond cosmetics: before the fix, a non-limit error (`unauthorized`, `invalid_request`, `internal_error`) fell through the limit check and was rendered as raw JSON, **charged the local usage ring** for a request that never reached the model, and was written into `state.history` — where it would be replayed as context on every later turn and into the review report
+- `runRequest()` is one attempt; `streamResponse()` owns retry, error display, and the charge/persist path. Only a clean response reaches `renderDiagramsIn` → `incrementUsage` → `onSuccess`
+- **Stale-token retry**: `chrome.identity.getAuthToken` returns cached tokens without knowing they've been revoked or expired, and there is no other way to clear one — so an `unauthorized` response triggers `removeCachedAuthToken` + one retry with a fresh token. Without it the user fails every request until they clear extension data. Auth is rejected before usage is charged, so the retry is free. `fetchUsageFromServer` drops a rejected token too, so a stale one doesn't also break the user's first real request
+- Failures render as an inline `.message.warning` bubble via `showErrorMessage()` (which `showLimitWarning` now delegates to), not as text inside the assistant bubble
 
 ## Coaching Modes and Code Disclosure
 - `CODE_POLICY` in lambda_function.py is a single dict appended to **every** mode's system prompt, so the policy can't drift between prompt builders. Ordered by permissiveness: learn > practice > interview
@@ -116,7 +138,8 @@ interface for code feedback, hints, and DSA guidance.
 ## DynamoDB
 - Table: `leetcoach-users`, partition key: `userId` (String), PAY_PER_REQUEST
 - Item schema: `userId`, `weeklyRequests`, `totalRequests`, `weekStartDate` (YYYY-MM-DD of Monday), `firstSeen`, `lastSeen`, `tier` (free)
-- IAM: Lambda role has `AmazonDynamoDBFullAccess`; deploying user (`leetcoach-dev`) also needs `AmazonDynamoDBFullAccess`
+- Table: `leetcoach-problems`, partition key: `problemSlug` (String), PAY_PER_REQUEST — see the Problems Table section above
+- IAM: Lambda role has scoped `GetItem`/`PutItem`/`UpdateItem`/`Query` on both table ARNs (not `AmazonDynamoDBFullAccess`); deploying user (`leetcoach-dev`) needs `AmazonDynamoDBFullAccess`
 
 ## What the Extension Can Read from LeetCode DOM
 - Problem name and number
@@ -134,7 +157,7 @@ interface for code feedback, hints, and DSA guidance.
 - Lambda — backend compute with Function URL (no API Gateway)
 - CloudWatch — logging
 - DynamoDB — `leetcoach-users` usage tracking table
-- IAM — Lambda execution role with `AmazonBedrockFullAccess` + `AmazonDynamoDBFullAccess`
+- IAM — Lambda execution role with inline scoped policies (see `template.yaml`): `bedrock:InvokeModelWithResponseStream` on the Claude inference profiles, and DynamoDB item actions on the two table ARNs. Not the AWS-managed FullAccess policies
 
 ## Security
 - API key is a SAM parameter (`ApiKey`) — never hardcoded in template.yaml
@@ -193,6 +216,10 @@ interface for code feedback, hints, and DSA guidance.
 - [x] `CODE_POLICY` tightening code disclosure across all modes (v1.2.0)
 - [x] ☰ settings menu (diagram, review, reset hint, clear, usage); coaching emoji back in header; concise tooltips (v1.2.0)
 - [x] Review report mode (5 prompts, 30-turn history, full disclosure) (v1.2.0)
+- [x] Backend errors no longer render as raw JSON, charge usage, or poison history; stale-token retry
+- [x] Prompt refund when Bedrock fails after usage was debited; Lambda timeout 30s → 60s
+- [x] Server-side history validation (shape, alternation, per-turn size cap)
+- [x] Official hints injected into hint mode (level-gated) and constraints into analyze/optimize
 - [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings
 

@@ -32,6 +32,31 @@ def get_problem_details(problem_slug):
         print(f"Error fetching problem details: {e}")
         return None
 
+
+# Coaching context pulled from the problems table. Deliberately a narrow
+# projection: `solutions` on a single item runs to 100KB, and none of the modes
+# that read this need it — only the get_solution tool does.
+_PROBLEM_CONTEXT_ATTRS = ('hints', 'constraints')
+
+
+def get_problem_context(problem_slug):
+    """Fetch only the coaching-relevant fields for a problem, or None."""
+    if not problem_slug:
+        return None
+    # Projected through ExpressionAttributeNames because several plausible
+    # attribute names here collide with DynamoDB reserved words.
+    names = {f'#a{i}': attr for i, attr in enumerate(_PROBLEM_CONTEXT_ATTRS)}
+    try:
+        response = _problems_table.get_item(
+            Key={'problemSlug': problem_slug},
+            ProjectionExpression=', '.join(names),
+            ExpressionAttributeNames=names,
+        )
+        return response.get('Item')
+    except ClientError as e:
+        print(f"Error fetching problem context: {e}")
+        return None
+
 # Google OAuth Client ID for token verification. Set in template.yaml.
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 
@@ -51,6 +76,12 @@ MAX_HISTORY_TURNS = 10
 # Kept per-mode rather than raised globally — a 30-turn history on every chat
 # turn would inflate input token cost on the most-used path.
 MAX_HISTORY_TURNS_REVIEW = 30
+# History originates in chrome.storage.local, so its contents are as untrusted
+# as any other client field. Capping turn count alone leaves input token cost
+# unbounded: 30 turns of arbitrary length is an arbitrary bill.
+MAX_HISTORY_CONTENT_BYTES = 4_000
+# Modes whose prompts read the problems table. Anything else skips the round trip.
+PROBLEM_CONTEXT_MODES = {'hint', 'analyze', 'optimize'}
 _USERID_RE = re.compile(r'^[a-zA-Z0-9_\-\.]{1,50}$')
 _SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9\-]{0,99}$')
 
@@ -198,6 +229,44 @@ def _chat_tool_chunks(messages, system_prompt, max_tokens, model_id, slug):
 # Input validation / sanitization
 # ---------------------------------------------------------------------------
 
+def _sanitize_history(raw, cap):
+    """Drop malformed turns, clip oversized ones, and guarantee the shape Bedrock
+    requires: alternating roles, starting with `user`.
+
+    build_messages() appends the current user turn afterwards, so this also
+    trims a trailing `user` entry — two user messages in a row is a 400 from
+    Bedrock, which would surface to the user as a generic internal error.
+    """
+    if not isinstance(raw, list):
+        return []
+
+    clean = []
+    for turn in raw[-cap:]:
+        if not isinstance(turn, dict):
+            continue
+        role, content = turn.get('role'), turn.get('content')
+        if role not in ('user', 'assistant') or not isinstance(content, str):
+            continue
+        content = content.strip()
+        if not content:
+            continue
+        encoded = content.encode('utf-8')
+        if len(encoded) > MAX_HISTORY_CONTENT_BYTES:
+            content = encoded[:MAX_HISTORY_CONTENT_BYTES].decode('utf-8', errors='ignore')
+        # Collapse a repeated role rather than dropping the turn — keeping the
+        # newer of the two loses less context than discarding both.
+        if clean and clean[-1]['role'] == role:
+            clean[-1] = {'role': role, 'content': content}
+            continue
+        clean.append({'role': role, 'content': content})
+
+    if clean and clean[0]['role'] == 'assistant':
+        clean.pop(0)
+    if clean and clean[-1]['role'] == 'user':
+        clean.pop()
+    return clean
+
+
 def validate_and_sanitize_body(body):
     """Sanitize request body in-place. Truncates oversized fields."""
     code = body.get('code', '')
@@ -230,12 +299,8 @@ def validate_and_sanitize_body(body):
         except (TypeError, ValueError):
             body['hintLevel'] = 1
 
-    history = body.get('history', [])
-    if isinstance(history, list):
-        cap = MAX_HISTORY_TURNS_REVIEW if body.get('mode') == 'review' else MAX_HISTORY_TURNS
-        body['history'] = history[-cap:]
-    else:
-        body['history'] = []
+    cap = MAX_HISTORY_TURNS_REVIEW if body.get('mode') == 'review' else MAX_HISTORY_TURNS
+    body['history'] = _sanitize_history(body.get('history'), cap)
 
     user_id = body.get('userId')
     if user_id is not None and (not isinstance(user_id, str) or not _USERID_RE.match(user_id)):
@@ -307,6 +372,63 @@ CODE_POLICY = {
     ),
 }
 
+# Caps on injected problem-table content — the table is ours, but a single
+# malformed row shouldn't be able to blow out the input token budget.
+MAX_REFERENCE_HINTS = 3
+MAX_HINT_CHARS = 400
+MAX_CONSTRAINT_LINES = 8
+MAX_CONSTRAINT_CHARS = 200
+
+
+def _clip(text, limit):
+    """Collapse whitespace and truncate — keeps injected rows to one tidy line."""
+    text = ' '.join(str(text).split())
+    return text if len(text) <= limit else text[:limit].rstrip() + '…'
+
+
+def _string_rows(value, max_rows, max_chars):
+    if not isinstance(value, list):
+        return []
+    rows = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            rows.append(_clip(item, max_chars))
+        if len(rows) >= max_rows:
+            break
+    return rows
+
+
+def format_reference_hints(details, hint_level):
+    """LeetCode's official hints run least to most specific, which maps directly
+    onto the 1-3 hint levels — so level N sees the first N hints and no more."""
+    if not details:
+        return ''
+    level = max(1, min(int(hint_level or 1), MAX_REFERENCE_HINTS))
+    rows = _string_rows(details.get('hints'), level, MAX_HINT_CHARS)
+    if not rows:
+        return ''
+    body = '\n'.join(f"- {r}" for r in rows)
+    return (
+        "\nOfficial hints for this problem, in increasing specificity. The user has NOT seen "
+        f"these:\n{body}\n"
+        "Treat them as ground truth for which direction is correct — they stop you nudging toward "
+        "a dead end. Do not quote them verbatim and do not dump them: say only as much as this "
+        "hint level allows, in your own words.\n"
+    )
+
+
+def format_constraints(details):
+    """Authoritative input bounds — turns the complexity verdict from a guess
+    into arithmetic (n <= 10^5 means an O(n^2) pass will TLE)."""
+    if not details:
+        return ''
+    rows = _string_rows(details.get('constraints'), MAX_CONSTRAINT_LINES, MAX_CONSTRAINT_CHARS)
+    if not rows:
+        return ''
+    body = '\n'.join(f"- {r}" for r in rows)
+    return f"\nProblem constraints (authoritative — do not guess input sizes):\n{body}\n"
+
+
 ALLOWED_DIAGRAM_TYPES = 'flowchart, sequenceDiagram, stateDiagram-v2, classDiagram'
 
 DIAGRAM_DETAIL = {
@@ -358,9 +480,11 @@ def build_prompt_for_mode(mode, body):
     elif mode == 'feedback':
         prompt, max_tokens = build_feedback_prompt(body), 360
     elif mode == 'review':
-        # The diagram is already part of the review prompt, so skip the augmentation
-        # below — otherwise the instruction is duplicated and double-charged.
-        return build_review_prompt(body), 900
+        # Falls through to the diagram augmentation below like every other mode.
+        # Previously the instruction was inlined here and the augmentation skipped,
+        # which meant no token bonus — the report ran out of budget mid-fence and
+        # the panel showed a diagram placeholder that never resolved.
+        prompt, max_tokens = build_review_prompt(body), 900
     else:
         prompt, max_tokens = build_chat_prompt(body), 400  # 'chat' or unknown
 
@@ -419,7 +543,9 @@ def build_hint_prompt(body):
     if coaching_mode == 'interview':
         instruction = "Ask a clarifying question about their approach instead of giving a hint."
 
-    return preamble + f"""
+    reference = format_reference_hints(body.get('problemContext'), hint_level)
+
+    return preamble + reference + f"""
 Hint level {hint_level}/3
 {coaching_rule}
 
@@ -454,13 +580,13 @@ def build_analyze_prompt(body):
 
     coaching_rule += "\n" + CODE_POLICY[coaching_mode]
 
-    return preamble + f"""
+    return preamble + format_constraints(body.get('problemContext')) + f"""
 {coaching_rule}
 
 3 bullets max, one short line each. Skip any section with no issue:
 - **Correctness:** logic correct? If there's a submission failure, diagnose it. Include line numbers where possible.
-- **Complexity:** Big-O time and space. Is it optimal?
-- **Edge cases:** any obvious gaps.
+- **Complexity:** Big-O time and space. Judge "is it optimal?" against the stated constraints, not in the abstract.
+- **Edge cases:** any obvious gaps. Prefer gaps the constraints actually permit — do not raise a case the constraints rule out.
 
 No rewrites, no full solutions. Be confident — state each point once and stop. Use ```{language} fences for any code. {language} only.
 """
@@ -497,13 +623,18 @@ def build_optimize_prompt(body):
     preamble, language = _build_preamble(body)
     coaching_mode = body.get('coachingMode', 'learn')
 
-    return preamble + f"""
+    return preamble + format_constraints(body.get('problemContext')) + f"""
 {CODE_POLICY[coaching_mode]}
 
 Review the efficiency of the user's current code. 4 short lines max, one line each:
 - **Now:** Big-O time and space as written, plus what drives each.
 - **Best:** the optimal time and space for this problem.
 - **Gap:** if not optimal, name the technique that closes it — do NOT implement it.
+
+Ground every verdict in the stated constraints: work out roughly what the largest input costs at the
+current complexity and say plainly whether that passes. "O(n^2) with n up to 10^5 is ~10^10 ops, too
+slow" beats "this could be faster". If the constraints are small enough that the current code is
+fine, say that instead of chasing a better bound it doesn't need.
 
 If it's already optimal, say so in one line and stop.
 
@@ -567,12 +698,6 @@ No walkthrough — the code and one line of explanation.
 
 ## What to practice next
 2 specific named patterns or problem types. One line each. Not "keep practicing".
-
-Then append exactly one Mermaid diagram in a ```mermaid fenced block visualizing the solution's core
-mechanic. Allowed types ONLY: {ALLOWED_DIAGRAM_TYPES}. Under 12 nodes, `flowchart TD` preferred.
-In flowchart nodes only, wrap labels in double quotes — A["left < right"] — since unquoted (), [],
-{{}}, or : breaks the parser. Do not quote participant, class, or state names. No markdown or HTML
-inside labels. Nothing after the closing fence.
 
 Write to the user as "you". Be specific and useful over kind.
 """
@@ -710,6 +835,31 @@ def check_and_update_usage(user_id, cost=1):
         return True
 
 
+def refund_usage(user_id, cost):
+    """Give prompts back for a request that was debited but never answered.
+
+    Usage is charged before Bedrock runs, so without this a throttle or model
+    error silently costs the user — 5 of their 100 for a review. Note this
+    cannot cover a function timeout: that kills the process outright, so the
+    only defence there is a Timeout with enough headroom for the longest reply.
+    The ConditionExpression stops a refund driving the counter negative.
+    """
+    if not user_id or cost <= 0:
+        return
+    try:
+        _table.update_item(
+            Key={'userId': user_id},
+            UpdateExpression='ADD weeklyRequests :neg, totalRequests :neg',
+            ConditionExpression='weeklyRequests >= :cost',
+            ExpressionAttributeValues={':neg': -cost, ':cost': cost},
+        )
+    except ClientError as e:
+        if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+            print(f"Refund failed for {user_id}: {e}")
+    except Exception as e:
+        print(f"Refund failed for {user_id}: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Handler
 # ---------------------------------------------------------------------------
@@ -785,9 +935,9 @@ def handler(event, context):
             _stream_to_runtime(context.aws_request_id, iter([json.dumps(usage_data)]))
             return
 
-        # Review already includes a diagram in its prompt, so an armed toggle
-        # must not stack another cost on top of the flat 5.
-        wants_diagram = body.get('wantsDiagram', False) and mode != 'review'
+        wants_diagram = body.get('wantsDiagram', False)
+        # Review is a flat 5 whether or not a diagram is attached. The diagram used
+        # to be bundled into that price, so charging 5+2 for it would be a rise.
         if mode == 'review':
             cost = REVIEW_COST
         elif wants_diagram:
@@ -810,6 +960,11 @@ def handler(event, context):
             })]))
             return
 
+        # Curated hints and constraints from the problems table. Fetched after the
+        # usage check so a rejected request never pays for the read.
+        if mode in PROBLEM_CONTEXT_MODES:
+            body['problemContext'] = get_problem_context(body.get('slug'))
+
         system_prompt, max_tokens = build_prompt_for_mode(mode, body)
         messages = build_messages(body)
 
@@ -820,22 +975,26 @@ def handler(event, context):
             else HAIKU_MODEL_ID
         )
 
-        if mode == 'chat':
-            _stream_to_runtime(
-                context.aws_request_id,
-                _chat_tool_chunks(messages, system_prompt, max_tokens, model_id, body.get('slug'))
-            )
-        else:
-            response = bedrock.invoke_model_with_response_stream(
-                modelId=model_id,
-                body=json.dumps({
-                    'anthropic_version': 'bedrock-2023-05-31',
-                    'max_tokens': max_tokens,
-                    'system': system_prompt,
-                    'messages': messages,
-                })
-            )
-            _stream_to_runtime(context.aws_request_id, _bedrock_text_chunks(response['body']))
+        try:
+            if mode == 'chat':
+                _stream_to_runtime(
+                    context.aws_request_id,
+                    _chat_tool_chunks(messages, system_prompt, max_tokens, model_id, body.get('slug'))
+                )
+            else:
+                response = bedrock.invoke_model_with_response_stream(
+                    modelId=model_id,
+                    body=json.dumps({
+                        'anthropic_version': 'bedrock-2023-05-31',
+                        'max_tokens': max_tokens,
+                        'system': system_prompt,
+                        'messages': messages,
+                    })
+                )
+                _stream_to_runtime(context.aws_request_id, _bedrock_text_chunks(response['body']))
+        except Exception:
+            refund_usage(user_id, cost)
+            raise
 
     except Exception as e:
         print(f"Unhandled error: {e}")
