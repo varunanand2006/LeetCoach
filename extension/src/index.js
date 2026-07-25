@@ -11,8 +11,8 @@ import {
   setInputEnabled, syncHintBadge, syncCoachingToggle, removeEmptyState,
   addEmptyState, createMessageBubble, appendMessage, syncDiagramToggle, remainingPrompts,
   setOverflowOpen, isOverflowOpen, syncMenuItems,
-  chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnThird, diagramToggleEl,
-  overflowToggleEl, menuReviewEl, menuClearEl, menuResetHintEl, segButtons
+  chatEl, inputEl, modeBtnHint, modeBtnAnalyze, modeBtnThird, coachingToggleEl,
+  settingsToggleEl, menuDiagramEl, menuReviewEl, menuClearEl, menuResetHintEl
 } from './ui.js';
 import { fetchUsageFromServer, streamResponse } from './api.js';
 import { renderMarkdown } from './markdown.js';
@@ -31,23 +31,21 @@ document.addEventListener('DOMContentLoaded', () => {
   modeBtnAnalyze.addEventListener('click', () => handleModeRequest('analyze'));
   modeBtnThird.addEventListener('click', () => handleModeRequest(modeBtnThird.dataset.mode));
 
-  for (const btn of segButtons) {
-    btn.addEventListener('click', async () => {
-      const newMode = btn.dataset.coaching;
-      if (newMode === coachingMode) return;
-      setCoachingMode(newMode);
-      await chrome.storage.local.set({ coachingMode: newMode });
-      syncCoachingToggle();
-    });
-  }
+  coachingToggleEl.addEventListener('click', async () => {
+    const next = { learn: 'practice', practice: 'interview', interview: 'learn' };
+    const newMode = next[coachingMode] ?? 'learn';
+    setCoachingMode(newMode);
+    await chrome.storage.local.set({ coachingMode: newMode });
+    syncCoachingToggle();
+  });
 
-  overflowToggleEl.addEventListener('click', (e) => {
+  settingsToggleEl.addEventListener('click', (e) => {
     e.stopPropagation();
     setOverflowOpen(!isOverflowOpen());
   });
 
   document.addEventListener('click', (e) => {
-    if (isOverflowOpen() && !e.target.closest('#overflow-menu, #overflow-toggle')) {
+    if (isOverflowOpen() && !e.target.closest('#settings-menu, #settings-toggle')) {
       setOverflowOpen(false);
     }
   });
@@ -75,7 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Diagram arming is one-shot and deliberately not persisted — it should never
   // survive a panel reload and silently double-charge a later request.
-  diagramToggleEl.addEventListener('click', () => {
+  // The menu stays open on toggle so the check state is visible before dismissing.
+  menuDiagramEl.addEventListener('click', (e) => {
+    e.stopPropagation();
     if (!diagramArmed && remainingPrompts() < DIAGRAM_COST) return;
     setDiagramArmed(!diagramArmed);
     syncDiagramToggle();

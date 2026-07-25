@@ -40,7 +40,7 @@ GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'optimize', 'feedback', 'review', 'usage'}
 # A diagram request costs 2 prompts against the weekly limit instead of 1.
 DIAGRAM_COST = 2
-DIAGRAM_TOKEN_BONUS = 400
+DIAGRAM_TOKEN_BONUS = 300
 # A full review report costs 5 and always includes a diagram.
 REVIEW_COST = 5
 MAX_CODE_BYTES = 10_000
@@ -350,19 +350,19 @@ def build_prompt_for_mode(mode, body):
     if mode == 'hint':
         prompt, max_tokens = build_hint_prompt(body), 128
     elif mode == 'analyze':
-        prompt, max_tokens = build_analyze_prompt(body), 512
+        prompt, max_tokens = build_analyze_prompt(body), 320
     elif mode == 'dsa':
         prompt, max_tokens = build_dsa_prompt(body), 256
     elif mode == 'optimize':
-        prompt, max_tokens = build_optimize_prompt(body), 400
+        prompt, max_tokens = build_optimize_prompt(body), 300
     elif mode == 'feedback':
-        prompt, max_tokens = build_feedback_prompt(body), 512
+        prompt, max_tokens = build_feedback_prompt(body), 360
     elif mode == 'review':
         # The diagram is already part of the review prompt, so skip the augmentation
         # below — otherwise the instruction is duplicated and double-charged.
-        return build_review_prompt(body), 1400
+        return build_review_prompt(body), 900
     else:
-        prompt, max_tokens = build_chat_prompt(body), 512  # 'chat' or unknown
+        prompt, max_tokens = build_chat_prompt(body), 400  # 'chat' or unknown
 
     if body.get('wantsDiagram'):
         prompt = append_diagram_instruction(prompt, body.get('coachingMode', 'learn'))
@@ -457,7 +457,7 @@ def build_analyze_prompt(body):
     return preamble + f"""
 {coaching_rule}
 
-3 bullets max, one line each. Skip any section with no issue:
+3 bullets max, one short line each. Skip any section with no issue:
 - **Correctness:** logic correct? If there's a submission failure, diagnose it. Include line numbers where possible.
 - **Complexity:** Big-O time and space. Is it optimal?
 - **Edge cases:** any obvious gaps.
@@ -500,16 +500,14 @@ def build_optimize_prompt(body):
     return preamble + f"""
 {CODE_POLICY[coaching_mode]}
 
-Review the efficiency of the user's current code. 6 short lines max, in this order:
-- **Time:** Big-O of the code as written, and the loop or call that drives it.
-- **Space:** Big-O of the code as written, and what's holding the memory.
-- **Optimal:** the best time and space achievable for this problem.
-- **Gap:** if the code isn't optimal, name the technique that closes the gap — do NOT implement it.
+Review the efficiency of the user's current code. 4 short lines max, one line each:
+- **Now:** Big-O time and space as written, plus what drives each.
+- **Best:** the optimal time and space for this problem.
+- **Gap:** if not optimal, name the technique that closes it — do NOT implement it.
 
-If it's already optimal, say so plainly, then note any constant-factor or memory win still on the table
-(early exit, in-place mutation, dropping an auxiliary structure).
+If it's already optimal, say so in one line and stop.
 
-Be direct and specific to their code — no generic advice. No preamble.
+Be direct and specific to their code — no generic advice. No preamble. Short sentences.
 If the last submission was TLE or MLE, treat that as the primary signal and lead with it.
 Use {language} naming conventions.
 """
@@ -525,15 +523,15 @@ def build_feedback_prompt(body):
 You are a senior engineer delivering end-of-interview feedback. Address the candidate directly and
 stay in character — this is the debrief a real interviewer gives, not a code review document.
 
-8 short lines max:
-- **Approach:** was the strategy sound, and did they choose it for the right reasons?
-- **Code quality:** naming, structure, edge-case handling.
-- **Complexity:** Big-O time and space, and whether it's optimal for this problem.
-- **What I'd want to see:** the single most valuable thing they should have done differently.
+5 short lines max, one line each:
+- **Approach:** was the strategy sound?
+- **Code quality:** the one thing that stood out, good or bad.
+- **Complexity:** Big-O time and space, and whether it's optimal.
+- **Do differently:** the single most valuable change.
 
-Be honest and specific — real interviewers don't flatter, and vague praise is useless to them.
-Where the code is genuinely good, say so briefly and move on.
-Close with a one-line overall read of how the interview went.
+Close with a one-line overall read.
+
+Be honest and specific — vague praise is useless. Keep every line short.
 """
 
 
@@ -549,24 +547,26 @@ the user's full session — read it as evidence of how they actually worked, not
 This report is a RETROSPECTIVE. Unlike every other mode, you may show the complete optimal solution
 and explain it in full. The user has finished; withholding now would be unhelpful.
 
+Keep the whole report tight — a user reads this in a 400px panel, so short sentences and no padding.
 Structure it with these headings exactly, in this order:
 
 ## The problem
-Two lines: what it's really testing, and the insight that unlocks it.
+One line: what it's really testing.
 
 ## How you approached it
-Read their session honestly. Where did they start? What did they try? Name the specific moments they
-got stuck or changed direction. Reference what they actually did — generic praise is worthless here.
+2-3 lines. Where they started, what they tried, where they changed direction. Reference what they
+actually did — generic praise is worthless here.
 
 ## Where you struggled
-The 2-3 concrete sticking points, and for each, the underlying gap it points to (a pattern they don't
-know yet, an edge case habit, a complexity blind spot). Be direct but not harsh.
+The 2 biggest sticking points, one line each, naming the underlying gap (a pattern they don't know
+yet, an edge case habit, a complexity blind spot). Direct but not harsh.
 
 ## The solution
-The optimal approach in {language}, complete and commented, with its time and space complexity.
+The optimal approach in {language}, complete but lightly commented, with its time and space complexity.
+No walkthrough — the code and one line of explanation.
 
 ## What to practice next
-2-3 specific, named things — problem types or patterns, not "keep practicing".
+2 specific named patterns or problem types. One line each. Not "keep practicing".
 
 Then append exactly one Mermaid diagram in a ```mermaid fenced block visualizing the solution's core
 mechanic. Allowed types ONLY: {ALLOWED_DIAGRAM_TYPES}. Under 12 nodes, `flowchart TD` preferred.

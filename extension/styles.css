@@ -42,107 +42,82 @@ html, body {
    Header
 ------------------------------------------------------------------------- */
 
-#topbar {
+#header {
   position: sticky;
   top: 0;
   z-index: 10;
-  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
   background: rgba(17, 17, 17, 0.70);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(46, 46, 46, 0.4);
-}
-
-#header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px 6px;
+  flex-shrink: 0;
   gap: 8px;
   min-width: 0;
 }
 
 /* -------------------------------------------------------------------------
-   Coaching mode segments
+   Settings menu
 ------------------------------------------------------------------------- */
 
-#mode-row {
-  display: flex;
-  gap: 3px;
-  padding: 0 12px 8px;
-}
-
-.seg-btn {
-  flex: 1;
-  background: #1e1e1e;
-  color: #7a7a7a;
-  border: 1px solid #2e2e2e;
-  border-radius: 5px;
-  padding: 4px 2px;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.seg-btn:hover:not(:disabled):not(.active) {
-  background: #262626;
-  color: #b0b0b0;
-}
-
-.seg-btn.active {
-  background: rgba(255, 161, 22, 0.16);
-  border-color: #ffa116;
-  color: #ffa116;
-}
-
-.seg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* -------------------------------------------------------------------------
-   Overflow menu
-------------------------------------------------------------------------- */
-
-#overflow-menu {
+#settings-menu {
   /* fixed, not absolute — #app is the scroll container, so an absolutely
-     positioned menu would scroll away from the ⋯ button that opened it. */
+     positioned menu would scroll away from the button that opened it. */
   position: fixed;
-  top: 78px;
+  top: 52px;
   right: 10px;
   z-index: 20;
-  min-width: 190px;
+  min-width: 245px;
   background: #1e1e1e;
   border: 1px solid #3a3a3a;
   border-radius: 8px;
-  padding: 4px;
+  padding: 5px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
   animation: diagramFadeIn 0.12s ease;
 }
-#overflow-menu[hidden] { display: none; }
+#settings-menu[hidden] { display: none; }
 
-#overflow-menu button {
-  display: flex;
+#settings-menu button,
+#settings-menu .menu-row {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   width: 100%;
   background: transparent;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   color: #e0e0e0;
   font-family: inherit;
   font-size: 12px;
   text-align: left;
-  padding: 7px 9px;
+  padding: 8px 9px;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.12s, color 0.12s;
 }
 
-#overflow-menu button:hover:not(:disabled) { background: #2a2a2a; }
-#overflow-menu button:disabled { opacity: 0.35; cursor: not-allowed; }
+#settings-menu button:hover:not(:disabled),
+#settings-menu button:hover:not(:disabled) .mi-icon {
+  background-color: #2a2a2a;
+  color: #ffa116;
+}
+#settings-menu button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.menu-cost {
+.mi-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8a8a8a;
+  background: none;
+  transition: color 0.12s;
+}
+.mi-icon svg { width: 16px; height: 16px; }
+.mi-text { line-height: 1.35; }
+
+.mi-cost {
   flex-shrink: 0;
   font-size: 10px;
   font-weight: 700;
@@ -152,17 +127,30 @@ html, body {
   border-radius: 9px;
   padding: 1px 6px;
 }
-#overflow-menu button:disabled .menu-cost { color: #7a7a7a; border-color: #3a3a3a; background: none; }
-
-#menu-usage {
-  color: #777;
-  font-size: 10.5px;
-  line-height: 1.4;
-  padding: 7px 9px 4px;
-  margin-top: 3px;
-  border-top: 1px solid #2e2e2e;
+#settings-menu button:disabled .mi-cost {
+  color: #7a7a7a;
+  border-color: #3a3a3a;
+  background: none;
 }
 
+/* Diagram row while armed — must read as checked at a glance. */
+#menu-diagram.checked { background: rgba(255, 161, 22, 0.16); color: #ffa116; }
+#menu-diagram.checked .mi-icon { color: #ffa116; }
+
+/* Usage row: lives in the menu now, so the shared header-icon styling
+   (dimmed, greyscaled, tooltip pseudo-element) has to be undone. */
+#settings-menu .menu-row {
+  cursor: default;
+  opacity: 1;
+  filter: none;
+  color: #8a8a8a;
+  font-size: 11px;
+  border-radius: 0;
+  margin-top: 3px;
+  padding-top: 10px;
+  border-top: 1px solid #2e2e2e;
+}
+#settings-menu .menu-row::after { content: none; }
 
 #problem-name {
   font-size: 13px;
@@ -350,6 +338,13 @@ html, body {
   filter: grayscale(0%);
 }
 
+#settings-toggle:hover,
+#settings-toggle.active {
+  opacity: 1;
+  color: #ffd426;
+  filter: drop-shadow(0 0 5px rgba(255, 212, 38, 0.8));
+}
+
 #usage-indicator::after, .icon-btn::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -406,31 +401,6 @@ html, body {
 }
 #usage-indicator.low .ring-fill   { stroke: #f97316; }
 #usage-indicator.empty .ring-fill { stroke: #ef4444; }
-
-/* -------------------------------------------------------------------------
-   Diagram toggle
-------------------------------------------------------------------------- */
-
-#diagram-toggle {
-  font-size: 13px;
-  border-radius: 6px;
-}
-
-#diagram-toggle.armed {
-  opacity: 1;
-  filter: none;
-  background: rgba(255, 161, 22, 0.15);
-  box-shadow: 0 0 0 1px rgba(255, 161, 22, 0.55), 0 0 10px rgba(255, 161, 22, 0.3);
-}
-
-#diagram-toggle.unaffordable {
-  cursor: not-allowed;
-}
-#diagram-toggle.unaffordable,
-#diagram-toggle.unaffordable:hover {
-  filter: grayscale(100%);
-  opacity: 0.6;
-}
 
 /* -------------------------------------------------------------------------
    Diagrams

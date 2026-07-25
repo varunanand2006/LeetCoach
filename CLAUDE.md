@@ -38,11 +38,11 @@ interface for code feedback, hints, and DSA guidance.
 - `manifest.json` — permissions, content scripts, side panel config, keyboard shortcut
 - `background.js` — side panel enable/disable logic, keyboard shortcut handler
 - `content.js` — reads LeetCode DOM (title, number, difficulty, tags, description, language); does NOT read Monaco code
-- `sidepanel.html` — side panel UI markup (topbar, coaching segments, overflow menu, chat area, mode bar)
+- `sidepanel.html` — side panel UI markup (header, settings menu, chat area, mode bar)
 - `styles.css` — all CSS (dark theme, mode buttons, spinner, markdown, usage ring, diagrams)
 - `src/index.js` — entry point and orchestrator: event wiring, per-tab state, navigation detection, request building
 - `src/state.js` — centralized state (per-tab history, coaching mode, usage count, diagram arm flag, storage helpers)
-- `src/ui.js` — DOM refs and rendering (usage ring, coaching segments, diagram toggle, overflow menu, swappable third mode button)
+- `src/ui.js` — DOM refs and rendering (usage ring, coaching cycle button, settings menu, swappable third mode button)
 - `src/api.js` — Lambda fetch, streaming, Google auth token, usage increment
 - `src/markdown.js` — markdown → HTML with Prism highlighting; turns ```mermaid fences into placeholder divs
 - `src/diagram.js` — lazy Mermaid import and SVG rendering, click-to-expand overlay, failure fallback
@@ -51,28 +51,29 @@ interface for code feedback, hints, and DSA guidance.
 - `vendor/mermaid/` — 35-file traced subset of mermaid@11 ESM (~1MB)
 
 ## Side Panel Layout
-- `#topbar` is the sticky container holding both the title row and the coaching segments. `#header` itself is no longer sticky — moving it broke nothing but is easy to reintroduce by accident
-- Header right side: ✨ diagram toggle, ◔ usage ring, ⋯ overflow
-- `#mode-row` — always-visible Learn/Practice/Interview segmented control. Replaced the old single emoji cycle button, which made the active mode invisible without hovering
-- `#overflow-menu` — Review report (5), Reset hint level, Clear chat, plus a usage line. **Must be `position: fixed`**, not absolute: `#app` is the scroll container, so an absolutely positioned menu scrolls away from the button that opened it
+- Header: problem name, coaching-mode emoji (🎓 Learn / 📝 Practice / 👔 Interview — a cycle button, icon only, mode named in the tooltip), then the ☰ settings hamburger. The hamburger glows yellow on hover and while open
+- Everything else lives in `#settings-menu`, one `[icon] [one-liner] [cost]` row per line: diagram toggle, Review this session, Reset hint level, Clear this chat, and a usage row using the ring icon
+- **`#settings-menu` must be `position: fixed`**, not absolute: `#app` is the scroll container, so an absolutely positioned menu scrolls away from the button that opened it
+- The diagram row keeps its checked state visible after the menu closes via the input placeholder — the menu row alone isn't enough. Clicking it does NOT close the menu (`stopPropagation`), so the check is visible before dismissing
 - Tooltips are noun phrases, not sentences — "Runtime analysis", not "Review runtime, memory, and Big-O complexity". Note that `syncThirdButton` overwrites the third button's `title` from the `THIRD_BUTTON` table, so editing the HTML `title` alone has no effect
-- `/clear` and `/reset` still work as typed commands; the ⋯ menu's Clear chat calls the same `clearChat()`
+- `/clear` and `/reset` still work as typed commands; the menu's Clear this chat calls the same `clearChat()`
+- An earlier iteration used a segmented Learn/Practice/Interview row and a header ✨ — both were reverted in favour of the icon-only cycle button and moving the diagram toggle into the menu
 
 ## Review Report
-- 5 prompts (`REVIEW_COST`), triggered only from the ⋯ menu — the menu placement is itself the friction, so there's deliberately no confirm dialog
+- 5 prompts (`REVIEW_COST`), triggered only from the ☰ settings menu — the menu placement is itself the friction, so there's deliberately no confirm dialog
 - Disabled below `MIN_REVIEW_MESSAGES` (6) history entries — a retrospective on a near-empty conversation is a guaranteed waste of 5 prompts
 - The only button mode that sends `history`; needs up to 30 entries, so `MAX_RETAINED_HISTORY` (30) governs frontend retention and `MAX_HISTORY_TURNS_REVIEW` (30) the backend cap. Chat stays at 10 — a 30-turn history on every chat turn would inflate input token cost on the most-used path
 - **Deliberately exempt from `CODE_POLICY`** — it's a retrospective, so it may show the complete optimal solution regardless of coaching mode. The prompt is identical in all three modes
-- Always includes a diagram (built into the prompt, not the ✨ arm). An armed toggle is ignored for review so the cost stays a flat 5 and the diagram instruction isn't duplicated
+- Always includes a diagram (built into the prompt, not the menu arm). An armed toggle is ignored for review so the cost stays a flat 5 and the diagram instruction isn't duplicated
 - Renders as a normal inline assistant bubble, so history persistence and diagram redraw work for free
 
 ## Diagrams
-- Opt-in per request: the ✨ toggle in the header **arms** a diagram for the next request, then disarms itself (one-shot, deliberately not persisted so a reload can't silently double-charge)
+- Opt-in per request: the diagram row in the ☰ settings menu **arms** a diagram for the next request, then disarms itself (one-shot, deliberately not persisted so a reload can't silently double-charge)
 - Costs 2 prompts instead of 1 (`DIAGRAM_COST`, mirrored in `state.js` and `lambda_function.py`)
 - Sent as a `wantsDiagram` boolean on the body, NOT a separate mode — it composes with chat/hint/analyze/dsa/optimize/feedback
-- Armed state shows as an orange glow on the star plus a changed input placeholder. An earlier `· 2` suffix on every mode button was removed — three markers for one state just squeezed the labels
+- Armed state shows as a checked/highlighted menu row plus a changed input placeholder (needed because the menu closes)
 - Toggle greys out and refuses to arm when fewer than 2 prompts remain
-- Backend appends a diagram section to whichever system prompt was built and adds `DIAGRAM_TOKEN_BONUS` (400) tokens
+- Backend appends a diagram section to whichever system prompt was built and adds `DIAGRAM_TOKEN_BONUS` (300) tokens
 - Diagram requests always route to Sonnet, even for hint/dsa — Mermaid syntax errors waste a paid request
 - Detail is tuned by coaching mode: fully labeled in Learn, sparse in Practice, skeletal in Interview
 - **Only four diagram types are vendored**: flowchart, sequenceDiagram, stateDiagram-v2, classDiagram. mindmap/architecture were excluded on purpose — they pull in cytoscape, which needs `eval` and would violate the MV3 CSP (`script-src 'self'`). `diagram.js` rejects unsupported types before calling mermaid
@@ -95,7 +96,8 @@ interface for code feedback, hints, and DSA guidance.
 - Returns: streamed plain text via chunked transfer encoding to Lambda Runtime API
 - Model routing: hint + dsa → `us.anthropic.claude-haiku-4-5-20251001-v1:0`; everything else → `us.anthropic.claude-sonnet-4-6` (the `us.` prefix enables cross-region inference routing). Any request with `wantsDiagram` overrides to Sonnet
 - Model IDs overridable via `HAIKU_MODEL_ID` / `SONNET_MODEL_ID` Lambda env vars — update these when Anthropic deprecates a version, no code change needed
-- Token budgets: hint 128, dsa 256, optimize 400, analyze 512, feedback 512, chat 512, review 1400; `+400` when `wantsDiagram` (review is exempt — its diagram is already in the prompt)
+- Token budgets: hint 128, dsa 256, optimize 300, analyze 320, feedback 360, chat 400, review 900; `+300` when `wantsDiagram` (review is exempt — its diagram is already in the prompt).
+- Budgets were deliberately trimmed once: long replies were overwhelming to read in a 400px panel. Prompts also cap line counts explicitly (optimize 4 lines, feedback 5, analyze 3 bullets) — raising `max_tokens` alone will not make replies longer
 - `usage` mode: reads DynamoDB, streams `{weeklyRequests, weekStartDate}` as JSON — does NOT count against limit
 - `check_and_update_usage(user_id, cost=1)`: called before every Bedrock call; `cost` is 2 for diagram requests. Allows the request iff `weeklyRequests <= WEEKLY_LIMIT - cost` — the threshold is precomputed in Python because DynamoDB can't do arithmetic inside a `ConditionExpression`. Always fails open on DynamoDB errors; resets weekly counter when weekStartDate != current Monday; the `ConditionExpression` makes the limit check + increment atomic (eliminates TOCTOU race on concurrent requests)
 - `WEEKLY_LIMIT = 100` (named constant, easy to change)
@@ -189,7 +191,7 @@ interface for code feedback, hints, and DSA guidance.
 - [x] Usage indicator changed from ✨ to a circular meter ring; ✨ reused for the diagram toggle
 - [x] `optimize` and `feedback` modes replacing DSA Tips in Practice/Interview (v1.2.0)
 - [x] `CODE_POLICY` tightening code disclosure across all modes (v1.2.0)
-- [x] Segmented coaching-mode row + ⋯ overflow menu; concise tooltips (v1.2.0)
+- [x] ☰ settings menu (diagram, review, reset hint, clear, usage); coaching emoji back in header; concise tooltips (v1.2.0)
 - [x] Review report mode (5 prompts, 30-turn history, full disclosure) (v1.2.0)
 - [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
 ## Security Findings

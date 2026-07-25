@@ -10,44 +10,78 @@
 <body>
   <div id="app">
 
-    <!-- Sticky top bar: title row + coaching mode segments -->
-    <div id="topbar">
-      <div id="header">
-        <span id="problem-name">LeetCoach</span>
-        <button id="diagram-toggle" class="icon-btn" aria-pressed="false"
-                data-tooltip="Visualize &middot; 2 prompts">
-          <span id="diagram-icon">✨</span>
-        </button>
-        <div id="usage-indicator" data-tooltip="100 / 100">
+    <!-- Header -->
+    <div id="header">
+      <span id="problem-name">LeetCoach</span>
+      <button id="coaching-toggle" class="icon-btn" data-tooltip="Learn mode&#10;Click to switch to Practice">
+        <span id="coaching-icon">🎓</span>
+      </button>
+      <button id="settings-toggle" class="icon-btn" aria-haspopup="menu" aria-expanded="false"
+              data-tooltip="Settings">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Settings menu: [icon] [one-liner] per row -->
+    <div id="settings-menu" role="menu" hidden>
+      <button id="menu-diagram" role="menuitemcheckbox" aria-checked="false">
+        <span class="mi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="2" width="6" height="5" rx="1"/>
+            <rect x="2" y="16" width="6" height="5" rx="1"/>
+            <rect x="16" y="16" width="6" height="5" rx="1"/>
+            <path d="M12 7v4M12 11H5v5M12 11h7v5"/>
+          </svg>
+        </span>
+        <span class="mi-text">Add a diagram to my next reply</span>
+        <span class="mi-cost">2</span>
+      </button>
+
+      <button id="menu-review" role="menuitem">
+        <span class="mi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6M8 13h8M8 17h5"/>
+          </svg>
+        </span>
+        <span class="mi-text">Review this session</span>
+        <span class="mi-cost">5</span>
+      </button>
+
+      <button id="menu-reset-hint" role="menuitem">
+        <span class="mi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>
+          </svg>
+        </span>
+        <span class="mi-text">Reset hint level</span>
+      </button>
+
+      <button id="menu-clear" role="menuitem">
+        <span class="mi-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          </svg>
+        </span>
+        <span class="mi-text">Clear this chat</span>
+      </button>
+
+      <div id="usage-indicator" class="menu-row">
+        <span class="mi-icon">
           <svg class="usage-ring" viewBox="0 0 24 24" aria-hidden="true">
             <circle class="ring-track" cx="12" cy="12" r="9" />
             <circle id="usage-ring-fill" class="ring-fill" cx="12" cy="12" r="9" />
           </svg>
-        </div>
-        <button id="overflow-toggle" class="icon-btn" aria-haspopup="menu" aria-expanded="false"
-                data-tooltip="More">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-            <circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/>
-          </svg>
-        </button>
+        </span>
+        <span class="mi-text" id="menu-usage">100 of 100 prompts left</span>
       </div>
-
-      <!-- Coaching mode: always visible so the active mode never needs a hover -->
-      <div id="mode-row" role="group" aria-label="Coaching mode">
-        <button class="seg-btn" data-coaching="learn">Learn</button>
-        <button class="seg-btn" data-coaching="practice">Practice</button>
-        <button class="seg-btn" data-coaching="interview">Interview</button>
-      </div>
-    </div>
-
-    <!-- Overflow menu -->
-    <div id="overflow-menu" role="menu" hidden>
-      <button id="menu-review" role="menuitem">
-        <span>Review report</span><span class="menu-cost">5</span>
-      </button>
-      <button id="menu-reset-hint" role="menuitem">Reset hint level</button>
-      <button id="menu-clear" role="menuitem">Clear chat</button>
-      <div id="menu-usage"></div>
     </div>
 
     <!-- Chat area -->

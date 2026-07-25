@@ -7,9 +7,8 @@ import {
 
 export let chatEl, inputEl, problemNameEl, usageIndicatorEl;
 export let modeBtnHint, modeBtnAnalyze, modeBtnThird, hintLevelBadgeEl;
-export let diagramToggleEl, overflowToggleEl, overflowMenuEl;
-export let menuReviewEl, menuClearEl, menuResetHintEl;
-export let segButtons = [];
+export let coachingToggleEl, settingsToggleEl, settingsMenuEl;
+export let menuDiagramEl, menuReviewEl, menuClearEl, menuResetHintEl;
 let usageRingFillEl, menuUsageEl;
 
 const RING_CIRCUMFERENCE = 2 * Math.PI * 9; // r=9 in sidepanel.html
@@ -46,14 +45,14 @@ export function initDOMElements() {
   modeBtnAnalyze   = document.getElementById('btn-analyze');
   modeBtnThird     = document.getElementById('btn-third');
   hintLevelBadgeEl = document.getElementById('hint-level-badge');
-  diagramToggleEl  = document.getElementById('diagram-toggle');
-  overflowToggleEl = document.getElementById('overflow-toggle');
-  overflowMenuEl   = document.getElementById('overflow-menu');
+  coachingToggleEl = document.getElementById('coaching-toggle');
+  settingsToggleEl = document.getElementById('settings-toggle');
+  settingsMenuEl   = document.getElementById('settings-menu');
+  menuDiagramEl    = document.getElementById('menu-diagram');
   menuReviewEl     = document.getElementById('menu-review');
   menuClearEl      = document.getElementById('menu-clear');
   menuResetHintEl  = document.getElementById('menu-reset-hint');
   menuUsageEl      = document.getElementById('menu-usage');
-  segButtons       = [...document.querySelectorAll('.seg-btn')];
 
   if (usageRingFillEl) {
     usageRingFillEl.style.strokeDasharray = String(RING_CIRCUMFERENCE);
@@ -104,11 +103,13 @@ export function setInputEnabled(enabled) {
   modeBtnHint.disabled = !enabled;
   modeBtnAnalyze.disabled = !enabled;
   modeBtnThird.disabled = !enabled;
-  if (diagramToggleEl) diagramToggleEl.disabled = !enabled;
-  for (const btn of segButtons) btn.disabled = !enabled;
-  if (menuReviewEl) {
-    if (!enabled) menuReviewEl.disabled = true;
-    else syncMenuItems();
+  if (coachingToggleEl) coachingToggleEl.disabled = !enabled;
+  if (!enabled) {
+    if (menuReviewEl) menuReviewEl.disabled = true;
+    if (menuDiagramEl) menuDiagramEl.disabled = true;
+  } else {
+    syncMenuItems();
+    syncDiagramToggle();
   }
 }
 
@@ -123,21 +124,20 @@ export function syncThirdButton() {
 }
 
 export function syncDiagramToggle() {
-  if (!diagramToggleEl) return;
+  if (!menuDiagramEl) return;
   const affordable = remainingPrompts() >= DIAGRAM_COST;
 
-  diagramToggleEl.classList.toggle('armed', diagramArmed);
-  diagramToggleEl.setAttribute('aria-pressed', String(diagramArmed));
-  diagramToggleEl.classList.toggle('unaffordable', !affordable);
-
-  // The armed state is already carried by the lit star and the placeholder;
-  // a third marker on every mode button was just squeezing the labels.
-  diagramToggleEl.dataset.tooltip = !affordable
-    ? `Needs ${DIAGRAM_COST} · ${remainingPrompts()} left`
+  menuDiagramEl.classList.toggle('checked', diagramArmed);
+  menuDiagramEl.setAttribute('aria-checked', String(diagramArmed));
+  menuDiagramEl.disabled = !diagramArmed && !affordable;
+  menuDiagramEl.title = !affordable && !diagramArmed
+    ? `Needs ${DIAGRAM_COST} prompts · ${remainingPrompts()} left`
     : diagramArmed
-      ? `Diagram on · click to cancel`
-      : `Visualize · ${DIAGRAM_COST} prompts`;
+      ? 'On for your next reply · click to cancel'
+      : `Adds a diagram, costs ${DIAGRAM_COST} prompts instead of 1`;
 
+  // The armed state has to stay visible after the menu closes, so it also
+  // shows in the placeholder — the menu row alone isn't enough.
   if (inputEl) {
     inputEl.placeholder = diagramArmed
       ? `Ask LeetCoach… · diagram on (${DIAGRAM_COST} prompts)`
@@ -149,26 +149,33 @@ export function syncHintBadge() {
   hintLevelBadgeEl.textContent = getTabState(activeTabId).hintLevel;
 }
 
+const COACHING_ICON = {
+  learn:     { icon: '🎓', tooltip: 'Learn mode\nClick to switch to Practice' },
+  practice:  { icon: '📝', tooltip: 'Practice mode\nClick to switch to Interview' },
+  interview: { icon: '👔', tooltip: 'Interview mode\nClick to switch to Learn' },
+};
+
 export function syncCoachingToggle() {
-  for (const btn of segButtons) {
-    const active = btn.dataset.coaching === coachingMode;
-    btn.classList.toggle('active', active);
-    btn.setAttribute('aria-pressed', String(active));
+  const iconEl = document.getElementById('coaching-icon');
+  if (coachingToggleEl && iconEl) {
+    const cfg = COACHING_ICON[coachingMode] ?? COACHING_ICON.learn;
+    iconEl.textContent = cfg.icon;
+    coachingToggleEl.dataset.tooltip = cfg.tooltip;
   }
   syncThirdButton();
 }
 
-/** Open/close the ⋯ menu, refreshing the state of its items. */
+/** Open/close the settings menu, refreshing the state of its items. */
 export function setOverflowOpen(open) {
-  if (!overflowMenuEl) return;
-  overflowMenuEl.hidden = !open;
-  overflowToggleEl?.setAttribute('aria-expanded', String(open));
-  overflowToggleEl?.classList.toggle('active', open);
+  if (!settingsMenuEl) return;
+  settingsMenuEl.hidden = !open;
+  settingsToggleEl?.setAttribute('aria-expanded', String(open));
+  settingsToggleEl?.classList.toggle('active', open);
   if (open) syncMenuItems();
 }
 
 export function isOverflowOpen() {
-  return overflowMenuEl && !overflowMenuEl.hidden;
+  return settingsMenuEl && !settingsMenuEl.hidden;
 }
 
 /**
