@@ -227,7 +227,7 @@ interface for code feedback, hints, and DSA guidance.
 ## Security
 - **There is no API key.** An earlier design shipped one in the extension; it was replaced by Google OAuth, and nothing in `template.yaml` defines an `ApiKey` parameter any more. Every request carries a Google token that the Lambda verifies against `GOOGLE_CLIENT_ID`, and `userId` is taken from the verified `sub` — never from the request body
 - Stripe secrets are `NoEcho` SAM parameters surfaced as Lambda env vars, never committed
-- **`samconfig.toml` stores only `AlertEmail` and `GoogleClientId`.** The Stripe parameters and `PaymentsEnabled` are *not* in it, so a bare `sam deploy` resets them to template defaults — which silently turns payments off and blanks the keys. Pass all five overrides every time, or add them to `samconfig.toml` (gitignored) once payments are live
+- **`samconfig.toml` now carries all six parameters** — `AlertEmail`, `GoogleClientId`, `StripeSecretKey`, `StripeWebhookSecret`, `PaymentsEnabled`, `MonthlyBudgetUsd` — so a bare `sam deploy` is correct. It previously held only the first two, which meant a bare deploy silently reset the Stripe params to template defaults: payments off, keys blanked. Never remove a parameter from that line without moving it to the command line. The file is gitignored (`.gitignore:9`) and has **never** been committed; the three historical commits touching it predate the Stripe params and contain no secrets
 - Billing kill switch: AWS Budgets Action attaches a Deny IAM policy at the `MonthlyBudgetUsd` threshold (currently $50), shutting down all Bedrock calls. Re-enable by detaching the `leetcoach-bedrock-killswitch` policy from `ChatFunctionExecutionRole` in the IAM console
 
 ### Cross-origin access
@@ -262,12 +262,16 @@ Test and live mode are **entirely separate accounts** inside Stripe — separate
 2. Register the **same** `PaymentWebhookUrl` again, this time with the dashboard in **live** mode, subscribed to the same four events. It gets a *different* `whsec_`
 3. Redeploy with both live values: `sam deploy --parameter-overrides "StripeSecretKey=sk_live_... StripeWebhookSecret=whsec_<live one> MonthlyBudgetUsd=50"`
 4. Buy one small pack with a **real card** and refund it. Test-mode success does not prove live wiring
-5. Only then bump `manifest.json` and publish the extension
+5. Update `docs/privacy.html` (Payments + Refunds) and `docs/index.html` before the buy button can reach a real user
 
-**Ordering matters in one direction.** Deploying live keys before the extension update is harmless. Publishing the extension while the Lambda still holds `sk_test_` is not — users get checkout pages that look completely real and take no money.
+**All five completed 2026-07-26.** Live `mini` purchase granted 50 credits and the refund revoked exactly 50, proving `payment_intent_data[metadata]` reaches the Charge on the live account too.
 
-## Refund Policy (drafted, NOT yet published)
-Reverted out of `docs/privacy.html` because payments are off. Restore it verbatim alongside the Payments section when the flag flips — Stripe expects a visible refund policy, and it reduces disputes:
+**Step 5 used to read "bump `manifest.json` and publish the extension" — that was wrong** and predates `PAYMENTS_ENABLED` becoming a server-side flag. The buy UI already ships in v1.3.0 behind that flag, so turning payments on needs **no** Chrome Web Store resubmission. Do not repackage the extension for a pricing or payments change.
+
+**Ordering matters in one direction.** Deploying live keys before the extension update is harmless. Publishing the extension while the Lambda still holds `sk_test_` is not — users get checkout pages that look completely real and take no money. The same asymmetry applies to the docs: the privacy policy must describe payments *before* the store approves a version whose buy button users can see.
+
+## Refund Policy (published 2026-07-26)
+Live in `docs/privacy.html` alongside the Payments section. Stripe expects a visible refund policy, and it reduces disputes:
 
 > Purchased prompts are refundable within 14 days if unused. Prompts already spent are not refundable. To request a refund, email varun.anand2006@gmail.com with the email address used at checkout. Refunds are returned to the original payment method, and the corresponding prompts are removed from your balance.
 
@@ -288,10 +292,11 @@ The 14-day window is a choice, not a requirement. The webhook already implements
 ## Environment Notes (this machine)
 - Shell is PowerShell: no `\` line continuations (use a backtick), no `cut`/`head`/`tail`, no `&&`
 - **TLS interception is active**: `aws` needs `--no-verify-ssl`, `curl` needs `-k`
+- **`curl` is a PowerShell alias for `Invoke-WebRequest`, which does not understand curl flags** — `-u` fails with "the parameter name 'u' is ambiguous". Call the real binary as `curl.exe`. `Invoke-RestMethod` is not a substitute here: PowerShell 5.1 has no `-SkipCertificateCheck`, so it dies on the TLS interception above
 
 ## Tests
 - `python backend/tests/test_usage_buckets.py` — 36 cases, two-balance charge/refund
-- `python backend/tests/test_checkout.py` — 29 cases, checkout session + the cross-package price contract
+- `python backend/tests/test_checkout.py` — 34 cases, checkout session + the cross-package price contract
 - `python payments/tests/test_webhook.py` — 42 cases, signature verification, idempotency, refunds
 - All three fake DynamoDB and the Lambda runtime; no AWS credentials or network needed
 - **`node --check` silently false-passes on these `.js` files** (returns 0 even on deliberately broken syntax). Copy to `.mjs` first — that catches errors properly. Verified on Node v24.13.0
@@ -356,10 +361,15 @@ The 14-day window is a choice, not a requirement. The webhook already implements
 - [x] `PAYMENTS_ENABLED` made a **server-side** flag (Lambda env var → `usage` response), so turning payments on needs no Chrome Web Store resubmission
 - [x] Origin filtering moved into the handler after `chrome-extension://` CORS failed to deploy; verified live with a hint request
 - [x] **v1.3.0 submitted to the Chrome Web Store (2026-07-25)** — pending review. No permission changes vs the previous package, which is what keeps review short
-- [ ] **Stripe business verification in progress** — bank details submitted, not yet verified. Nothing else is blocked on it
-- [ ] When verification clears: register the webhook in **live** mode (new `whsec_`), deploy with `PaymentsEnabled=true` + `sk_live_`, restore the landing-page CTAs and the privacy Payments + Refunds sections, then buy and refund the `mini` pack with a real card
-- [ ] `mini` is the only pack **no real Stripe session has ever carried** — exercise it first
-- [ ] Consider raising `MonthlyBudgetUsd` above $50 before taking payments: the kill switch is role-level, so it would Deny Bedrock for paying customers too (~60 maxed users of headroom)
+- [x] **Stripe account live (2026-07-26)** — `charges_enabled` and `payouts_enabled` both true. Verification cleared without ever requesting a photo ID, meaning the identity details matched public records
+- [x] Live webhook registered (`leetcoach-live`, destination `we_1TxQXCC400xlolb5FX7TPrEV`, API version `2026-06-24.dahlia`, snapshot payloads, the same four events) with its own `whsec_`, distinct from the test-mode one
+- [x] Deployed with `PaymentsEnabled=true` + `sk_live_`; changeset touched only the two Lambda env blocks, no table or URL changes
+- [x] **Live `mini` purchase and refund verified end to end (2026-07-26)** — the only pack no real Stripe session had ever carried. Balance went 500 → 550 → 500, webhook returned 200 both times
+- [x] `docs/privacy.html` Payments + Refunds sections published; landing page "coming soon" removed
+- [ ] **Stripe payout schedule is `manual`** — money sits in the Stripe balance and never reaches the bank on its own. Switch to automatic under Settings → Payouts
+- [ ] **`support_phone` is a personal mobile and `support_email` is unset** — Stripe prints the support contact on card statements and receipts, so that number currently goes to every customer
+- [ ] Consider raising `MonthlyBudgetUsd` above $50 now that payments are live: the kill switch is role-level, so it would Deny Bedrock for paying customers too (~60 maxed users of headroom)
+- [ ] v1.3.0 still pending Chrome Web Store review. The buy button cannot reach a real user until it lands, which is the only reason the docs lag was survivable
 
 ## Deferred / Nice to Have
 - Per-mode usage counters in DynamoDB. `totalRequests` counts requests but not *which* modes, so the blended $0.0038/prompt figure behind the pack pricing still rests on an assumed mode mix
