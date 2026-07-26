@@ -7,9 +7,9 @@ interface for code feedback, hints, and DSA guidance.
 
 ## Architecture
 - **Frontend**: Chrome Extension (Manifest V3, vanilla JavaScript)
-- **Backend**: Single AWS Lambda function (Python 3.11)
+- **Backend**: Two AWS Lambda functions on `python3.14` — the streaming chat handler (`backend/`) and the buffered Stripe webhook (`payments/`)
 - **AI**: Claude Haiku (hint/dsa) + Claude Sonnet (analyze/chat) via Amazon Bedrock
-- **Database**: DynamoDB (`leetcoach-users` table, PAY_PER_REQUEST)
+- **Database**: DynamoDB — `leetcoach-users` (usage + purchased credits), `leetcoach-problems` (hints/constraints/solutions), `leetcoach-payments` (Stripe idempotency ledger). All PAY_PER_REQUEST
 - **Infrastructure**: AWS SAM
 
 ## Project Structure
@@ -23,13 +23,13 @@ interface for code feedback, hints, and DSA guidance.
 **Nothing that isn't Lambda code belongs under `backend/` or `payments/`** — they are `CodeUri` roots, so every file in them ships in that function's deployment package. `scripts/` used to live at `backend/scripts/` and was putting a 20MB JSON dataset into every deploy. **SAM has no `.samignore`** (confirmed absent from SAM CLI 1.156.0 — the feature was requested for years and never shipped), so keeping files out of the tree is the only way to keep them out of the package.
 
 ## Key Decisions
-- Single Lambda function, mode determined by request body (`mode` field)
+- One Lambda handles all chat/AI work, with the mode chosen by the request body (`mode` field). The Stripe webhook is a **second** function purely because it needs `InvokeMode: BUFFERED` to return status codes
 - Vanilla JS for extension (no React)
 - Read problem context from LeetCode DOM
 - Session-only chat memory (no persistence in v1)
 - Haiku for hint/dsa (cheap, short responses); Sonnet for analyze/chat (code review, freeform)
 - Three coaching modes: Learn (educational), Practice (minimal nudges), Interview (Socratic questioning/mock interview)
-- Monaco code must be read via `chrome.scripting.executeScript` in MAIN world from sidepanel.js — content.js cannot access `window.monaco` (isolated world)
+- Monaco code must be read via `chrome.scripting.executeScript` in MAIN world from `src/scraper.js` — content.js cannot access `window.monaco` (isolated world). **`sidepanel.js` no longer exists**; it was split into the `src/` modules
 - LeetCode migrated from Monaco to CodeMirror 6 (CM6); `getMonacoCode` tries Monaco first, then CM6 via the internal EditorView key on `.cm-editor` (`Object.keys(el).find(k => el[k]?.state?.doc)`), then falls back to reading `.cm-line` DOM elements
 - Side panel enabled only on leetcode.com/problems/* tabs; auto-opens on icon click
 - Keyboard shortcut Cmd+Shift+L / Ctrl+Shift+L to reopen
@@ -56,10 +56,11 @@ interface for code feedback, hints, and DSA guidance.
 
 ## Side Panel Layout
 - Header: problem name, coaching-mode emoji (🎓 Learn / 📝 Practice / 👔 Interview — a cycle button, icon only, mode named in the tooltip), then the ☰ settings hamburger. The hamburger glows yellow on hover and while open
-- Everything else lives in `#settings-menu`, one `[icon] [one-liner] [cost]` row per line: diagram toggle, Review this session, Reset hint level, Clear this chat, and a usage row using the ring icon
+- Everything else lives in `#settings-menu`, one `[icon] [one-liner] [cost]` row per line: diagram toggle, Review this session, Reset hint level, Clear this chat, **Buy more prompts** (hidden unless the server reports `paymentsEnabled`), and a usage row using the ring icon
 - **`#settings-menu` must be `position: fixed`**, not absolute: `#app` is the scroll container, so an absolutely positioned menu scrolls away from the button that opened it
 - The diagram row keeps its checked state visible after the menu closes via the input placeholder — the menu row alone isn't enough. Clicking it does NOT close the menu (`stopPropagation`), so the check is visible before dismissing
-- Header buttons carry a subtle `1px #333` outline; the hamburger turns brand orange (`#ffa116`) on hover and while open. Costs are deliberately NOT shown as badges in the menu
+- Header buttons carry a `1px #3f3f3f` outline and rest at `opacity: 0.72` / `grayscale(55%)`. They were `0.35` / `grayscale(100%)`, which read as *disabled* rather than idle. The hamburger sits brighter still (`0.92`, no greyscale, `#4a4a4a` border) because it is the only route into every setting, and turns brand orange (`#ffa116`) on hover and while open. Costs are deliberately NOT shown as badges in the menu
+- The inline buy card (`showBuyCard`) has an `×` close button — it opens from a menu click rather than a user question, so without one the only way to dismiss it is closing the panel
 - Tooltips are noun phrases, not sentences — "Runtime analysis", not "Review runtime, memory, and Big-O complexity". Note that `syncThirdButton` overwrites the third button's `title` from the `THIRD_BUTTON` table, so editing the HTML `title` alone has no effect
 - `/clear` and `/reset` still work as typed commands; the menu's Clear this chat calls the same `clearChat()`
 - An earlier iteration used a segmented Learn/Practice/Interview row and a header ✨ — both were reverted in favour of the icon-only cycle button and moving the diagram toggle into the menu
@@ -211,8 +212,8 @@ interface for code feedback, hints, and DSA guidance.
 - Difficulty (Easy/Medium/Hard)
 - Topic tags
 - Selected language
-- Current user code (via `chrome.scripting.executeScript` MAIN world in sidepanel.js)
-- Submission failure details: Wrong Answer (input/expected/actual), Runtime Error, Compile Error, TLE, MLE, OLE (via MAIN world in sidepanel.js)
+- Current user code (via `chrome.scripting.executeScript` MAIN world in `src/scraper.js`)
+- Submission failure details: Wrong Answer (input/expected/actual), Runtime Error, Compile Error, TLE, MLE, OLE (via MAIN world in `src/scraper.js`)
 
 - LeetCode username (`userId`): parsed from `a[href*="/u/"]` href, not innerText
 
@@ -224,10 +225,15 @@ interface for code feedback, hints, and DSA guidance.
 - IAM — Lambda execution role with inline scoped policies (see `template.yaml`): `bedrock:InvokeModelWithResponseStream` on the Claude inference profiles, and DynamoDB item actions on the two table ARNs. Not the AWS-managed FullAccess policies
 
 ## Security
-- API key is a SAM parameter (`ApiKey`) — never hardcoded in template.yaml
-- `samconfig.toml` is gitignored — contains the API key value locally
-- API key is hardcoded in `sidepanel.js` — unavoidable for a Chrome extension (ships in the .crx)
-- Billing kill switch: AWS Budgets Action attaches a Deny IAM policy at $10/month spend, shutting down all Bedrock calls. Re-enable by detaching `leetcoach-bedrock-killswitch` policy from `ChatFunctionExecutionRole` in IAM console.
+- **There is no API key.** An earlier design shipped one in the extension; it was replaced by Google OAuth, and nothing in `template.yaml` defines an `ApiKey` parameter any more. Every request carries a Google token that the Lambda verifies against `GOOGLE_CLIENT_ID`, and `userId` is taken from the verified `sub` — never from the request body
+- Stripe secrets are `NoEcho` SAM parameters surfaced as Lambda env vars, never committed
+- **`samconfig.toml` stores only `AlertEmail` and `GoogleClientId`.** The Stripe parameters and `PaymentsEnabled` are *not* in it, so a bare `sam deploy` resets them to template defaults — which silently turns payments off and blanks the keys. Pass all five overrides every time, or add them to `samconfig.toml` (gitignored) once payments are live
+- Billing kill switch: AWS Budgets Action attaches a Deny IAM policy at the `MonthlyBudgetUsd` threshold (currently $50), shutting down all Bedrock calls. Re-enable by detaching the `leetcoach-bedrock-killswitch` policy from `ChatFunctionExecutionRole` in the IAM console
+
+### Cross-origin access
+- **`AllowOrigins` must stay `'*'`.** Lambda Function URL CORS only accepts http/https origins or the wildcard — `chrome-extension://<id>` is rejected at deploy time with `"isn't a valid origin"` (Lambda 400 `InvalidRequest`). Attempted 2026-07-25: the stack update failed on `ChatFunctionUrl`, the resource rolled back cleanly, and the stack was recovered with a normal redeploy. **Do not attempt again**
+- Filtering therefore lives in `_origin_allowed()` in the handler, which rejects any request carrying an **http(s) Origin**. A browser sets that header itself and page JS cannot forge it, so an http(s) origin means a web page is calling — and none should be. `chrome-extension://` and an absent Origin are both allowed, so the check cannot break the panel if Chrome changes what it sends
+- **CORS was never the real control here.** Every request needs a Google token whose `aud` matches the extension's client id, which a web page cannot mint; and an attacker holding a stolen token would call from a server, where CORS does not apply. The origin check is defence in depth, not the boundary
 - deploying user (`leetcoach-dev`) needs `budgets:*` permission in addition to IAM and DynamoDB
 
 ## Landing Page (docs/)
@@ -251,6 +257,7 @@ interface for code feedback, hints, and DSA guidance.
 ## Going Live
 Test and live mode are **entirely separate accounts** inside Stripe — separate keys, separate webhook endpoints, separate `whsec_`, separate payment history. Nothing configured in test mode carries over, so every step below is a fresh setup, not a toggle.
 
+0. **A Stripe *sandbox* is not the same as the live account's test mode.** Sandbox keys, webhook endpoints, `whsec_` values and payment history are all sandbox-scoped and carry over to nothing. Everything below is a fresh setup in the real account
 1. Complete Stripe's business verification (bank details, identity). Live keys don't exist until this is done
 2. Register the **same** `PaymentWebhookUrl` again, this time with the dashboard in **live** mode, subscribed to the same four events. It gets a *different* `whsec_`
 3. Redeploy with both live values: `sam deploy --parameter-overrides "StripeSecretKey=sk_live_... StripeWebhookSecret=whsec_<live one> MonthlyBudgetUsd=50"`
@@ -258,6 +265,13 @@ Test and live mode are **entirely separate accounts** inside Stripe — separate
 5. Only then bump `manifest.json` and publish the extension
 
 **Ordering matters in one direction.** Deploying live keys before the extension update is harmless. Publishing the extension while the Lambda still holds `sk_test_` is not — users get checkout pages that look completely real and take no money.
+
+## Refund Policy (drafted, NOT yet published)
+Reverted out of `docs/privacy.html` because payments are off. Restore it verbatim alongside the Payments section when the flag flips — Stripe expects a visible refund policy, and it reduces disputes:
+
+> Purchased prompts are refundable within 14 days if unused. Prompts already spent are not refundable. To request a refund, email varun.anand2006@gmail.com with the email address used at checkout. Refunds are returned to the original payment method, and the corresponding prompts are removed from your balance.
+
+The 14-day window is a choice, not a requirement. The webhook already implements the mechanics: `charge.refunded` revokes pro-rata and floors the balance at zero.
 
 ## Budgets (three exist; only one can stop production)
 | Budget | Limit | Action |
@@ -303,7 +317,7 @@ Test and live mode are **entirely separate accounts** inside Stripe — separate
 - [x] background.js
 - [x] content.js
 - [x] sidepanel.html
-- [x] sidepanel.js
+- [x] side panel UI (originally `sidepanel.js`, since split into `src/*.js`)
 - [x] lambda_function.py
 - [x] template.yaml
 - [x] First deployment
@@ -338,14 +352,18 @@ Test and live mode are **entirely separate accounts** inside Stripe — separate
 - [x] Webhook role verified for `TransactWriteItems` via `iam simulate-principal-policy`
 - [x] **Test-mode purchases verified live (2026-07-25)** — two `checkout.session.completed` grants credited 500 each and independently; one `charge.refunded` revoked exactly 500, leaving 500. The revoke proves `payment_intent_data[metadata]` reached the Charge, which is the only way a refund can identify the user. `runtime_client` streaming confirmed working on Python 3.14
 - [x] Orphan `leet-coach` stack deleted; `leetcoach` and `aws-sam-cli-managed-default` are the only stacks left
-- [x] v1.3.0 packaged for the Chrome Web Store (`leetcoach-1.3.0.zip`): CORS scoped to the extension id, payments feature-flagged off, weekly limit 50
-- [ ] **Stripe deferred** — business verification needs US bank access. Turning it on later is `sam deploy --parameter-overrides "PaymentsEnabled=true StripeSecretKey=sk_live_... StripeWebhookSecret=whsec_..."`, then restore the pricing CTAs on the landing page and the Payments section of `docs/privacy.html`. **No Chrome Web Store resubmission needed**
-- [ ] Deploy the CORS change, then **verify a live request from the extension before submitting**
-- [ ] Raise the $10 budget cap before taking any payment — the kill switch can Deny Bedrock for a paying customer
-- [ ] Deploy v1.2.0 backend (`sam build --use-container && sam deploy`) and publish the extension update
-## Security Findings
+- [x] v1.3.0 packaged for the Chrome Web Store (`leetcoach-1.3.0.zip`): weekly limit 50, `mini` pack added, payments feature-flagged off
+- [x] `PAYMENTS_ENABLED` made a **server-side** flag (Lambda env var → `usage` response), so turning payments on needs no Chrome Web Store resubmission
+- [x] Origin filtering moved into the handler after `chrome-extension://` CORS failed to deploy; verified live with a hint request
+- [x] **v1.3.0 submitted to the Chrome Web Store (2026-07-25)** — pending review. No permission changes vs the previous package, which is what keeps review short
+- [ ] **Stripe business verification in progress** — bank details submitted, not yet verified. Nothing else is blocked on it
+- [ ] When verification clears: register the webhook in **live** mode (new `whsec_`), deploy with `PaymentsEnabled=true` + `sk_live_`, restore the landing-page CTAs and the privacy Payments + Refunds sections, then buy and refund the `mini` pack with a real card
+- [ ] `mini` is the only pack **no real Stripe session has ever carried** — exercise it first
+- [ ] Consider raising `MonthlyBudgetUsd` above $50 before taking payments: the kill switch is role-level, so it would Deny Bedrock for paying customers too (~60 maxed users of headroom)
 
-### Cross-origin access
-- **`AllowOrigins` must stay `'*'`.** Lambda Function URL CORS only accepts http/https origins or the wildcard; `chrome-extension://<id>` is rejected at deploy time with `"isn't a valid origin" (Lambda 400 InvalidRequest)`. Tried 2026-07-25, failed the stack update, rolled back cleanly. Do not attempt again
-- Filtering therefore lives in `_origin_allowed()` in the handler, which rejects any request carrying an **http(s) Origin** — a browser sets that header itself and page JS cannot forge it, so an http(s) origin means a web page is calling and none should be. `chrome-extension://` and absent Origin are both allowed, so it cannot break the panel if Chrome changes what it sends
-- **CORS was never the real control here.** Every request needs a Google token whose `aud` matches the extension's client id, which a web page cannot mint; and an attacker holding a stolen token would call from a server, where CORS does not apply. The origin check is defence in depth, not the boundary
+## Deferred / Nice to Have
+- Per-mode usage counters in DynamoDB. `totalRequests` counts requests but not *which* modes, so the blended $0.0038/prompt figure behind the pack pricing still rests on an assumed mode mix
+- `optimize` is the next candidate to move to Haiku now that constraints are injected
+- `similarQuestionList` from the problems table into the review report
+- GraphQL hints fallback for problems missing from `leetcoach-problems`
+- Line highlighting in the editor (deferred: line parsing isn't reliable enough yet)

@@ -324,7 +324,7 @@ Resources:
 
 Outputs:
   ChatFunctionUrl:
-    Description: "Paste this URL into API_URL in extension/sidepanel.js"
+    Description: "Must match API_URL in extension/src/state.js"
     Value: !GetAtt ChatFunctionUrl.FunctionUrl
   UsersTableName:
     Description: "DynamoDB table for user usage tracking"
