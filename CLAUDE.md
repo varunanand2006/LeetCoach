@@ -366,8 +366,8 @@ The 14-day window is a choice, not a requirement. The webhook already implements
 - [x] Deployed with `PaymentsEnabled=true` + `sk_live_`; changeset touched only the two Lambda env blocks, no table or URL changes
 - [x] **Live `mini` purchase and refund verified end to end (2026-07-26)** — the only pack no real Stripe session had ever carried. Balance went 500 → 550 → 500, webhook returned 200 both times
 - [x] `docs/privacy.html` Payments + Refunds sections published; landing page "coming soon" removed
-- [ ] **Stripe payout schedule is `manual`** — money sits in the Stripe balance and never reaches the bank on its own. Switch to automatic under Settings → Payouts
-- [ ] **`support_phone` is a personal mobile and `support_email` is unset** — Stripe prints the support contact on card statements and receipts, so that number currently goes to every customer
+- [x] **Payout schedule stays `manual` — deliberate.** Payouts are initiated by hand in the Stripe dashboard rather than on a schedule. Do not "fix" this to automatic. It also happens to suit the refund policy: a held balance is what a `charge.refunded` draws from, so refunds don't have to pull from the bank via `debit_negative_balances`
+- [x] **`support_phone` is deliberately a personal mobile, `support_email` deliberately unset.** Stripe prints this on statements and receipts; accepted. The landing page and privacy policy both route support to varun.anand2006@gmail.com regardless
 - [ ] Consider raising `MonthlyBudgetUsd` above $50 now that payments are live: the kill switch is role-level, so it would Deny Bedrock for paying customers too (~60 maxed users of headroom)
 - [ ] v1.3.0 still pending Chrome Web Store review. The buy button cannot reach a real user until it lands, which is the only reason the docs lag was survivable
 
