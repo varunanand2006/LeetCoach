@@ -114,7 +114,6 @@
       <div class="hidden md:flex items-center justify-center space-x-8 flex-1">
         <a class="nav-link text-sm font-medium" href="#features">Product</a>
         <a class="nav-link text-sm font-medium" href="https://github.com/varunanand2006/LeetCoach" target="_blank">Open Source</a>
-        <a class="nav-link text-sm font-medium" href="#pricing">Pricing</a>
       </div>
       <div class="flex-1 hidden md:block"></div>
     </nav>
@@ -137,27 +136,75 @@
             highlighting bugs, and asking questions about what you wrote like an interviewer would.
           </p>
 
-          <div class="flex flex-col sm:flex-row gap-4 pt-2 w-full justify-center items-center">
+          <div class="flex flex-col sm:flex-row gap-6 pt-2 w-full justify-center items-center">
             <a href="https://chromewebstore.google.com/detail/mphhiilfiepjpipajkgoehmoncilcmfj" target="_blank"
-              class="bg-white text-black font-semibold px-8 py-4 rounded-lg flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors text-lg">
-              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="21.17" y1="8" x2="12" y2="8"></line><line x1="3.95" y1="6.06" x2="8.54" y2="14"></line><line x1="10.88" y1="21.94" x2="15.46" y2="14"></line></svg>
+              class="bg-white text-black font-semibold px-10 py-5 rounded-lg flex items-center justify-center gap-3 hover:bg-gray-200 transition-colors text-xl shrink-0">
+              <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="21.17" y1="8" x2="12" y2="8"></line><line x1="3.95" y1="6.06" x2="8.54" y2="14"></line><line x1="10.88" y1="21.94" x2="15.46" y2="14"></line></svg>
               Add to Chrome
             </a>
+            <div class="flex text-sm text-text-gray/80 items-center text-left whitespace-nowrap">
+              Press <kbd class="bg-surface-light border border-border-color px-1.5 py-0.5 rounded-md font-mono text-white mx-1">Ctrl</kbd> + <kbd class="bg-surface-light border border-border-color px-1.5 py-0.5 rounded-md font-mono text-white mx-1">Shift</kbd> + <kbd class="bg-surface-light border border-border-color px-1.5 py-0.5 rounded-md font-mono text-white mx-1">L</kbd> to activate
+            </div>
           </div>
         </div>
 
-        <div class="relative flex justify-center items-center w-full max-w-6xl mt-20">
-          <div class="glass-mockup w-full shadow-2xl bg-black">
+        <div class="relative w-full max-w-6xl mx-auto mt-20" id="conversation-carousel">
+          <div class="overflow-hidden relative rounded-xl border border-border-color shadow-2xl bg-black">
             <div class="bg-surface-light border-b border-border-color px-4 py-3 flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full bg-border-color"></div>
-              <div class="w-3 h-3 rounded-full bg-border-color"></div>
-              <div class="w-3 h-3 rounded-full bg-border-color"></div>
+              <div class="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
+              <div class="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
+              <div class="w-3 h-3 rounded-full bg-[#27c93f]"></div>
             </div>
-            <video class="w-full object-cover" autoplay loop muted playsinline>
-              <source src="./demo.mp4" type="video/mp4" />
-            </video>
+            <div class="flex transition-transform duration-500 ease-in-out items-start" id="carousel-inner">
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot (4).png" alt="Conversation 1"
+                  class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105504.png"
+                  alt="Conversation 2" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105726.png"
+                  alt="Conversation 3" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105940.png"
+                  alt="Conversation 4" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110144.png"
+                  alt="Conversation 5" class="w-full h-auto" /></div>
+              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110303.png"
+                  alt="Conversation 6" class="w-full h-auto" /></div>
+            </div>
           </div>
+          <button id="carousel-prev" class="absolute top-1/2 -left-4 md:-left-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg"><span class="material-symbols-outlined">chevron_left</span></button>
+          <button id="carousel-next" class="absolute top-1/2 -right-4 md:-right-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg"><span class="material-symbols-outlined">chevron_right</span></button>
+          <div class="flex justify-center gap-3 mt-6" id="carousel-indicators"></div>
         </div>
+        <script>
+          document.addEventListener('DOMContentLoaded', () => {
+            const inner = document.getElementById('carousel-inner');
+            const prev = document.getElementById('carousel-prev');
+            const next = document.getElementById('carousel-next');
+            const indicatorsContainer = document.getElementById('carousel-indicators');
+            const slidesCount = inner.children.length;
+            let currentIndex = 0;
+            let interval;
+            for (let i = 0; i < slidesCount; i++) {
+              const dot = document.createElement('button');
+              dot.className = `w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === 0 ? 'bg-primary w-6' : 'bg-border-color hover:bg-text-gray'}`;
+              dot.addEventListener('click', () => { goToSlide(i); resetInterval(); });
+              indicatorsContainer.appendChild(dot);
+            }
+            const indicators = indicatorsContainer.children;
+            function goToSlide(index) {
+              currentIndex = index;
+              inner.style.transform = `translateX(-${currentIndex * 100}%)`;
+              Array.from(indicators).forEach((dot, i) => {
+                dot.className = `w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === currentIndex ? 'bg-primary w-6' : 'bg-border-color hover:bg-text-gray'}`;
+              });
+            }
+            function nextSlide() { currentIndex = (currentIndex < slidesCount - 1) ? currentIndex + 1 : 0; goToSlide(currentIndex); }
+            prev.addEventListener('click', () => { currentIndex = (currentIndex > 0) ? currentIndex - 1 : slidesCount - 1; goToSlide(currentIndex); resetInterval(); });
+            next.addEventListener('click', () => { nextSlide(); resetInterval(); });
+            function startInterval() { interval = setInterval(nextSlide, 4000); }
+            function resetInterval() { clearInterval(interval); startInterval(); }
+            startInterval();
+          });
+        </script>
       </div>
     </section>
 
@@ -228,9 +275,9 @@
             </div>
             <h3 class="text-xl font-semibold text-white mb-3">Visual Diagrams</h3>
             <div class="text-text-gray leading-relaxed flex-grow">
-              See your algorithms come to life. LeetCoach can generate diagrams alongside any response — tree
-              structures, state machines, flowcharts, and more — rendered right in the sidebar so you can visualize the
-              approach instead of just reading about it.
+              Algorithms are hard to follow in your head. LeetCoach generates tree structures, state machines,
+              flowcharts, and more right in the sidebar, so you can actually see what's happening instead of trying
+              to trace through it mentally.
             </div>
             <div class="mt-6 rounded-lg overflow-hidden border border-border-color">
               <img src="./bst-diagram.png" alt="Binary search tree diagram example" class="w-full object-cover" />
@@ -245,9 +292,30 @@
             </div>
             <h3 class="text-xl font-semibold text-white mb-3">Session Review Reports</h3>
             <div class="text-text-gray leading-relaxed flex-grow">
-              When you're done with a problem, generate a full retrospective report. LeetCoach reviews your entire
-              session — how you approached the problem, where you struggled, the optimal solution with its complexity,
-              and what patterns to practice next. It's the debrief a mentor would give you.
+              After you finish a problem, LeetCoach generates a full debrief. It covers how you approached it,
+              where you got stuck, what the optimal solution looks like, and which patterns you should practice
+              next. It's the honest feedback you'd get from a great mentor.
+            </div>
+            <div class="mt-6 rounded-lg overflow-hidden border border-border-color bg-[#0a0a0a] p-5 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-text-gray font-mono">Approach</span>
+                <span class="text-[11px] text-primary font-mono font-medium">Hash Map ✓</span>
+              </div>
+              <div class="border-t border-border-color"></div>
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-text-gray font-mono">Complexity</span>
+                <span class="text-[11px] font-mono"><span class="text-text-gray">O(n²)</span> <span class="text-text-gray">→</span> <span class="text-primary font-medium">O(n)</span></span>
+              </div>
+              <div class="border-t border-border-color"></div>
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-text-gray font-mono">Edge Cases</span>
+                <span class="text-[11px] text-primary font-mono font-medium">3/4 caught</span>
+              </div>
+              <div class="border-t border-border-color"></div>
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-text-gray font-mono">Score</span>
+                <span class="text-[11px] text-primary font-mono font-bold">8 / 10</span>
+              </div>
             </div>
           </div>
 
@@ -259,9 +327,23 @@
             </div>
             <h3 class="text-xl font-semibold text-white mb-3">20+ Languages</h3>
             <div class="text-text-gray leading-relaxed flex-grow">
-              Python, Java, C++, JavaScript, Go, Rust, TypeScript, and more. LeetCoach reads and reviews code in
-              whatever language you write it in — no configuration, no switching. It detects your language automatically
-              and adapts its feedback to match.
+              Write in Python, Java, C++, Go, Rust, TypeScript, or any of the 20+ languages LeetCode supports.
+              LeetCoach detects what you're using and adapts automatically. No setup, no config, just start
+              solving.
+            </div>
+            <div class="mt-6 flex flex-wrap gap-2">
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-primary">Python</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">Java</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">C++</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">JavaScript</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">Go</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">Rust</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">TypeScript</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">C#</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">Kotlin</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">Swift</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-white">Ruby</span>
+              <span class="px-3 py-1.5 rounded-lg bg-surface-light border border-border-color text-[11px] font-mono text-text-gray">+ more</span>
             </div>
           </div>
         </div>
@@ -281,100 +363,18 @@
           </p>
         </div>
 
-        <!-- Carousel Container -->
-        <div class="relative w-full max-w-6xl mx-auto" id="conversation-carousel">
-          <!-- Slides -->
-          <div class="overflow-hidden relative rounded-xl border border-border-color shadow-2xl bg-black">
-            <div class="flex transition-transform duration-500 ease-in-out items-start" id="carousel-inner">
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot (4).png" alt="Conversation 1"
-                  class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105504.png"
-                  alt="Conversation 2" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105726.png"
-                  alt="Conversation 3" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 105940.png"
-                  alt="Conversation 4" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110144.png"
-                  alt="Conversation 5" class="w-full h-auto" /></div>
-              <div class="w-full flex-shrink-0"><img src="./demo_pictures/Screenshot 2026-05-27 110303.png"
-                  alt="Conversation 6" class="w-full h-auto" /></div>
+        <div class="relative flex justify-center items-center w-full max-w-6xl">
+          <div class="glass-mockup w-full shadow-2xl bg-black">
+            <div class="bg-surface-light border-b border-border-color px-4 py-3 flex items-center gap-2">
+              <div class="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
+              <div class="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
+              <div class="w-3 h-3 rounded-full bg-[#27c93f]"></div>
             </div>
-          </div>
-
-          <!-- Prev/Next Controls -->
-          <button id="carousel-prev"
-            class="absolute top-1/2 -left-4 md:-left-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg">
-            <span class="material-symbols-outlined">chevron_left</span>
-          </button>
-          <button id="carousel-next"
-            class="absolute top-1/2 -right-4 md:-right-12 -translate-y-1/2 w-10 h-10 bg-surface-light border border-border-color rounded-full flex items-center justify-center text-white hover:text-primary hover:border-primary transition-colors z-10 shadow-lg">
-            <span class="material-symbols-outlined">chevron_right</span>
-          </button>
-
-          <!-- Indicators -->
-          <div class="flex justify-center gap-3 mt-6" id="carousel-indicators">
-            <!-- JS will populate -->
+            <video class="w-full object-cover" autoplay loop muted playsinline>
+              <source src="./demo.mp4" type="video/mp4" />
+            </video>
           </div>
         </div>
-
-        <script>
-          document.addEventListener('DOMContentLoaded', () => {
-            const inner = document.getElementById('carousel-inner');
-            const prev = document.getElementById('carousel-prev');
-            const next = document.getElementById('carousel-next');
-            const indicatorsContainer = document.getElementById('carousel-indicators');
-            const slidesCount = inner.children.length;
-            let currentIndex = 0;
-            let interval;
-
-            // Create indicators
-            for (let i = 0; i < slidesCount; i++) {
-              const dot = document.createElement('button');
-              dot.className = `w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === 0 ? 'bg-primary w-6' : 'bg-border-color hover:bg-text-gray'}`;
-              dot.addEventListener('click', () => {
-                goToSlide(i);
-                resetInterval();
-              });
-              indicatorsContainer.appendChild(dot);
-            }
-            const indicators = indicatorsContainer.children;
-
-            function goToSlide(index) {
-              currentIndex = index;
-              inner.style.transform = `translateX(-${currentIndex * 100}%)`;
-              Array.from(indicators).forEach((dot, i) => {
-                dot.className = `w-2.5 h-2.5 rounded-full transition-all duration-300 ${i === currentIndex ? 'bg-primary w-6' : 'bg-border-color hover:bg-text-gray'}`;
-              });
-            }
-
-            function nextSlide() {
-              currentIndex = (currentIndex < slidesCount - 1) ? currentIndex + 1 : 0;
-              goToSlide(currentIndex);
-            }
-
-            prev.addEventListener('click', () => {
-              currentIndex = (currentIndex > 0) ? currentIndex - 1 : slidesCount - 1;
-              goToSlide(currentIndex);
-              resetInterval();
-            });
-
-            next.addEventListener('click', () => {
-              nextSlide();
-              resetInterval();
-            });
-
-            function startInterval() {
-              interval = setInterval(nextSlide, 4000);
-            }
-
-            function resetInterval() {
-              clearInterval(interval);
-              startInterval();
-            }
-
-            startInterval();
-          });
-        </script>
       </div>
     </section>
 
@@ -459,9 +459,9 @@
         <div class="relative flex justify-center items-center">
           <div class="glass-mockup w-full shadow-2xl">
             <div class="bg-surface-light border-b border-border-color px-4 py-3 flex items-center gap-2">
-              <div class="w-3 h-3 rounded-full bg-border-color"></div>
-              <div class="w-3 h-3 rounded-full bg-border-color"></div>
-              <div class="w-3 h-3 rounded-full bg-border-color"></div>
+              <div class="w-3 h-3 rounded-full bg-[#ff5f56]"></div>
+              <div class="w-3 h-3 rounded-full bg-[#ffbd2e]"></div>
+              <div class="w-3 h-3 rounded-full bg-[#27c93f]"></div>
             </div>
             <img alt="LeetCoach Sidebar Interface" class="w-full object-cover" src="./ss.png" />
           </div>
@@ -481,9 +481,9 @@
           <div class="border-gradient rounded-2xl p-1 bg-surface-light">
             <div class="bg-background rounded-xl p-8 border border-border-color h-full flex flex-col">
               <h3 class="text-xl font-semibold text-white mb-2">Free</h3>
-              <div class="flex items-baseline justify-center gap-1 mb-6">
-                <span class="text-4xl font-bold text-white">$0</span>
-                <span class="text-text-gray">/ week</span>
+              <div class="flex items-baseline justify-center gap-1 mb-6 flex-col">
+                <span class="text-4xl font-bold text-white w-full text-center">$0</span>
+                <span class="text-text-gray text-sm w-full text-center">Refills weekly</span>
               </div>
               <ul class="space-y-3 text-left mb-8 flex-grow">
                 <li class="flex items-center gap-3 text-text-gray text-sm">
