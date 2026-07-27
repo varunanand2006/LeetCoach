@@ -164,7 +164,7 @@ VALID_MODES = {'chat', 'hint', 'analyze', 'dsa', 'optimize', 'feedback', 'review
                'create_checkout_session'}
 # A diagram request costs 2 prompts against the weekly limit instead of 1.
 DIAGRAM_COST = 2
-DIAGRAM_TOKEN_BONUS = 300
+DIAGRAM_TOKEN_BONUS = 350
 # A full review report costs 5 and always includes a diagram.
 REVIEW_COST = 5
 MAX_CODE_BYTES = 10_000
@@ -180,7 +180,11 @@ MAX_HISTORY_TURNS_REVIEW = 30
 # unbounded: 30 turns of arbitrary length is an arbitrary bill.
 MAX_HISTORY_CONTENT_BYTES = 4_000
 # Modes whose prompts read the problems table. Anything else skips the round trip.
-PROBLEM_CONTEXT_MODES = {'hint', 'analyze', 'optimize'}
+# feedback and review are here because both assert whether the code is optimal, and
+# that verdict is arithmetic against the input bounds rather than a judgement call.
+# Only the hint builder ever formats the `hints` field, so widening this set cannot
+# leak official hints into a mode that shouldn't show them.
+PROBLEM_CONTEXT_MODES = {'hint', 'analyze', 'optimize', 'feedback', 'review'}
 # Modes routed to Haiku, ordered by what a wrong answer costs the user: hint and dsa only
 # point a direction, and feedback is a subjective debrief with no correctness surface.
 # analyze (asserts a bug exists), optimize (asserts a Big-O), review (emits a full solution),
@@ -514,11 +518,10 @@ def format_reference_hints(details, hint_level):
         return ''
     body = '\n'.join(f"- {r}" for r in rows)
     return (
-        "\nOfficial hints for this problem, in increasing specificity. The user has NOT seen "
-        f"these:\n{body}\n"
-        "Treat them as ground truth for which direction is correct — they stop you nudging toward "
-        "a dead end. Do not quote them verbatim and do not dump them: say only as much as this "
-        "hint level allows, in your own words.\n"
+        "\nOfficial hints for this problem, least to most specific. The user has NOT seen these:\n"
+        f"{body}\n"
+        "Ground truth for which direction is correct — they stop you nudging toward a dead end. "
+        "Never quote or dump them: say only what this hint level allows, in your own words.\n"
     )
 
 
@@ -543,13 +546,12 @@ def format_constraints(details):
 # only truncates mid-sentence.
 RESPONSE_STYLE = """
 How to write:
-- Lead with the answer. No preamble, no restating the problem, no closing summary, no filler
-  openers ("Great question", "Let's take a look", "I notice that").
-- Guide, don't lecture. Name the one thing worth thinking about next and stop — they're
-  mid-problem, not reading a tutorial. Leave them something to work out.
-- Where the format below allows several points, lead with the one that unblocks them and cut
-  the rest. A ceiling is not a quota.
-- Say it once, plainly. No hedging or second-guessing. Don't pad one line into a bullet list.
+- Lead with the answer. No preamble, no restating the problem, no filler openers ("Great
+  question", "Let's take a look", "I notice that"). No closing summary unless the format
+  above explicitly asks for one.
+- Guide, don't lecture. Name the one thing to think about next and stop — leave them work to do.
+- The ceilings above are not quotas. Lead with what unblocks them and cut the rest.
+- Say it once, plainly. No hedging. Don't pad one line into a bullet list.
 """
 
 ALLOWED_DIAGRAM_TYPES = 'flowchart, sequenceDiagram, stateDiagram-v2, classDiagram'
@@ -596,28 +598,38 @@ def build_prompt_for_mode(mode, body):
     # generated. RESPONSE_STYLE and the per-mode line caps are what shorten replies;
     # these ceilings just sit far enough above the intended length to never clip one.
     if mode == 'hint':
-        prompt, max_tokens = build_hint_prompt(body), 110
+        prompt, max_tokens = build_hint_prompt(body), 150
     elif mode == 'analyze':
-        prompt, max_tokens = build_analyze_prompt(body), 240
+        prompt, max_tokens = build_analyze_prompt(body), 320
     elif mode == 'dsa':
-        prompt, max_tokens = build_dsa_prompt(body), 180
+        # The widest bump of the set: dsa now lists 2-3 ranked approaches where it
+        # used to name one, so it's the one mode whose intended output got longer.
+        prompt, max_tokens = build_dsa_prompt(body), 300
     elif mode == 'optimize':
-        prompt, max_tokens = build_optimize_prompt(body), 220
+        prompt, max_tokens = build_optimize_prompt(body), 300
     elif mode == 'feedback':
-        prompt, max_tokens = build_feedback_prompt(body), 260
+        prompt, max_tokens = build_feedback_prompt(body), 320
     elif mode == 'review':
         # Falls through to the diagram augmentation below like every other mode.
         # Previously the instruction was inlined here and the augmentation skipped,
         # which meant no token bonus — the report ran out of budget mid-fence and
         # the panel showed a diagram placeholder that never resolved.
-        prompt, max_tokens = build_review_prompt(body), 750
+        prompt, max_tokens = build_review_prompt(body), 1100
     else:
-        prompt, max_tokens = build_chat_prompt(body), 320  # 'chat' or unknown
+        prompt, max_tokens = build_chat_prompt(body), 420  # 'chat' or unknown
 
     # Review is exempt: it's a deliberate long-form retrospective, and "lead with one
     # thing and drop the rest" would gut a report that's meant to have five sections.
+    #
+    # CODE_POLICY is appended here rather than inside each builder so it lands *last*,
+    # ahead of only the diagram block. It used to sit near the top of every prompt, above
+    # format specs that contradicted it — analyze's "use ```lang fences for any code" came
+    # after interview's "write no code at all", and the later line wins. feedback pins to
+    # interview whatever coachingMode says: it IS the interview debrief, which is what its
+    # builder hardcoded before this moved.
     if mode != 'review':
-        prompt += RESPONSE_STYLE
+        policy_mode = 'interview' if mode == 'feedback' else body.get('coachingMode', 'learn')
+        prompt += RESPONSE_STYLE + '\n' + CODE_POLICY.get(policy_mode, CODE_POLICY['learn']) + '\n'
 
     if body.get('wantsDiagram'):
         prompt = append_diagram_instruction(prompt, body.get('coachingMode', 'learn'))
@@ -637,7 +649,9 @@ def _build_preamble(body):
         f"- Difficulty: {problem.get('difficulty', 'Unknown')}\n"
         f"- Tags: {', '.join(problem.get('tags', []))}\n"
         f"- Description: {problem.get('description', '')}\n\n"
-        f"User's current code ({language}):\n"
+        f"User's current code ({language}). To point at a line, quote it verbatim rather than "
+        f"numbering it — a quote either matches their editor or visibly doesn't, where a counted "
+        f"line number can be wrong in a way the user only discovers by going and looking.\n"
         f"```\n{code}\n```\n"
         f"{submission_snippet}"
     )
@@ -655,24 +669,25 @@ def build_hint_prompt(body):
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
-            "Coaching mode: INTERVIEW. Don't give a hint — ask the user to explain their current logic or how they'd handle a specific edge case, and nudge towards the right direction like an interviewer would. Be professional and slightly critical."
+            "Coaching mode: INTERVIEW. Don't hint — make them explain their logic or an edge case, "
+            "professional and slightly critical."
         )
     else:
         coaching_rule = (
             "Coaching mode: PRACTICE. Minimal directional nudge only — no data structure names, no explanations."
         )
 
-    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
-
+    # Every level is one sentence — the levels change how much is revealed, not how
+    # much is written. A level-3 hint is more specific, not longer.
     level_instructions = {
-        1: "One sentence only. Nudge toward a property the solution needs — no data structure or algorithm names.",
-        2: "1-2 sentences. Name the data structure or algorithm category. No implementation details.",
-        3: "2 sentences max. Name the exact structure and what to store in it. No code.",
+        1: "Nudge toward a property the solution needs — no data structure or algorithm names.",
+        2: "Name the data structure or algorithm category. No implementation details.",
+        3: "Name the exact structure and what to store in it. No code.",
     }
 
     instruction = level_instructions.get(hint_level, level_instructions[3])
     if coaching_mode == 'interview':
-        instruction = "Ask a clarifying question about their approach instead of giving a hint."
+        instruction = "Ask one question about their approach instead of hinting."
 
     reference = format_reference_hints(body.get('problemContext'), hint_level)
 
@@ -683,6 +698,10 @@ Hint level {hint_level}/3
 Your task: {instruction}
 
 Rules:
+- ONE sentence. Not two, at any level — under 25 words.
+- Hint at THEIR code, not the problem in the abstract. Read what they've written, find the specific
+  gap between it and a working solution, and point at that. Quote a variable or the line itself when
+  it makes the hint land. If the editor is empty or only boilerplate, point at the first step instead.
 - Never reveal the complete algorithm.
 - Small nudge if they're close, a bigger one if they're stuck.
 - Use {language} naming conventions for any data structure references.
@@ -695,7 +714,7 @@ def build_analyze_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            "Coaching mode: LEARN. For each issue, very briefly explain why it matters and what direction to consider for a fix (no code). One very short bullet per issue"
+            "Coaching mode: LEARN. Per issue: why it matters and what direction fixes it (no code)."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
@@ -703,17 +722,23 @@ def build_analyze_prompt(body):
         )
     else:
         coaching_rule = (
-            "Coaching mode: PRACTICE. List issues only — minimal explanation, no fix hints. Blunt and precise. One very short bullet per issue"
+            "Coaching mode: PRACTICE. List issues only — no explanation, no fix hints. Blunt and precise."
         )
 
-    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
+    # Applies in all three modes, interview included: an interviewer's question is
+    # still an assertion that the flaw is there, so "how would this handle an empty
+    # array?" is in; "you might want to consider empty arrays" is not.
+    coaching_rule += (
+        "\nBe confident in every mode. State each issue as fact — never 'this might', 'you may want "
+        "to consider', or 'potentially'. If you aren't sure it's a real bug, leave it out."
+    )
 
     return preamble + format_constraints(body.get('problemContext')) + f"""
 {coaching_rule}
 
-Max 3 bullets, one line each. Skip any section with no issue — three bullets is a ceiling,
-not a quota, and one real problem beats three padded ones:
-- **Correctness:** logic correct? If there's a submission failure, diagnose it. Cite the line number.
+Max 3 bullets, one line of 20 words or fewer each. Skip any section with no issue — three is a
+ceiling, not a quota, and one real problem beats three padded ones:
+- **Correctness:** logic correct? If there's a submission failure, diagnose it. Quote the line.
 - **Complexity:** Big-O time and space. Judge "is it optimal?" against the stated constraints, not in the abstract.
 - **Edge cases:** any obvious gaps. Only ones the constraints actually permit — never raise a case they rule out.
 
@@ -722,70 +747,56 @@ No rewrites, no full solutions. Use ```{language} fences for any code. {language
 
 
 def build_dsa_prompt(body):
+    """Pattern suggestions. The third button only exposes this in Learn mode, so the
+    per-coaching-mode variants were unreachable and are gone. CODE_POLICY still applies —
+    build_prompt_for_mode appends it, keyed off coachingMode."""
     preamble, language = _build_preamble(body)
 
-    coaching_mode = body.get('coachingMode', 'learn')
-    if coaching_mode == 'learn':
-        coaching_rule = (
-            f"Coaching mode: LEARN. Explain why this pattern fits, and include a one-line {language} syntax example for the key operation."
-        )
-    elif coaching_mode == 'interview':
-        coaching_rule = (
-            "Coaching mode: INTERVIEW. State the pattern and structure briefly, then ask the user to explain the time-space trade-off vs. a naive approach."
-        )
-    else:
-        coaching_rule = (
-            "Coaching mode: PRACTICE. Pattern and structure name only. Zero explanation."
-        )
-
-    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
-
     return preamble + f"""
-{coaching_rule}
+Name the approach that solves this. If more than one is genuinely viable, list the top 2-3 ordered
+easiest to hardest to implement — otherwise give one and stop; padding to three is worse than one.
 
-1-3 lines total. State: algorithmic pattern, specific data structure variant, optimal complexity. Bold pattern/structure names (e.g., **sliding window**, **monotonic deque**). No extra explanation. {language} naming conventions. If the last submission is TLE/MLE, factor that into your complexity recommendation.
+One line each, 20 words or fewer: **pattern**, the specific data structure variant, its complexity,
+and for a harder option what it buys over the one above it. Bold pattern and structure names
+(e.g. **sliding window**, **monotonic deque**). No walkthroughs, no code.
+
+{language} naming conventions. If the last submission was TLE or MLE, drop any approach that can't clear it.
 """
 
 
 def build_optimize_prompt(body):
-    """Efficiency review — replaces the DSA Tips button in Practice mode."""
+    """Efficiency review — the third button in Practice mode."""
     preamble, language = _build_preamble(body)
-    coaching_mode = body.get('coachingMode', 'learn')
 
     return preamble + format_constraints(body.get('problemContext')) + f"""
-{CODE_POLICY[coaching_mode]}
-
-Review the efficiency of the user's current code. 3 lines max, one line each:
+Review the efficiency of the user's current code. 3 lines max, 20 words or fewer each:
 - **Now:** Big-O time and space as written, plus what drives each.
 - **Best:** the optimal time and space for this problem.
 - **Gap:** if not optimal, name the technique that closes it — do NOT implement it.
 
-Ground the verdict in the stated constraints: work out roughly what the largest input costs at the
-current complexity and say plainly whether it passes. "O(n^2) with n up to 10^5 is ~10^10 ops, too
-slow" beats "this could be faster". If the constraints make the current code fine, say so rather
-than chasing a bound it doesn't need.
+Ground the verdict in the stated constraints: "O(n^2) with n up to 10^5 is ~10^10 ops, too slow"
+beats "this could be faster". If the constraints make the current code fine, say so rather than
+chasing a bound it doesn't need.
 
 If it's already optimal, say so in one line and stop.
 
-Be specific to their code — no generic advice. If the last submission was TLE or MLE, that's the
-primary signal: lead with it. Use {language} naming conventions.
+Specific to their code, no generic advice. If the last submission was TLE or MLE, lead with it.
+Use {language} naming conventions.
 """
 
 
 def build_feedback_prompt(body):
-    """End-of-interview debrief — replaces the DSA Tips button in Interview mode."""
+    """End-of-interview debrief — the third button in Interview mode."""
     preamble, _language = _build_preamble(body)
 
-    return preamble + f"""
-{CODE_POLICY['interview']}
-
+    return preamble + format_constraints(body.get('problemContext')) + f"""
 You are a senior engineer delivering end-of-interview feedback. Address the candidate directly and
-stay in character — this is the debrief a real interviewer gives, not a code review document.
+stay in character — the debrief a real interviewer gives, not a code review document.
 
-4 lines max, one line each:
+4 lines max, 20 words or fewer each:
 - **Approach:** was the strategy sound?
 - **Code quality:** the one thing that stood out, good or bad.
-- **Complexity:** Big-O time and space, and whether it's optimal.
+- **Complexity:** Big-O time and space, and whether it's optimal for the stated constraints.
 - **Do differently:** the single most valuable change.
 
 Then a one-line overall read. Nothing after it.
@@ -799,12 +810,13 @@ def build_review_prompt(body):
     generates this when they're done, so withholding the solution defeats the point."""
     preamble, language = _build_preamble(body)
 
-    return preamble + f"""
-You are writing a end-of-session review report for the problem above. The conversation history is
+    return preamble + format_constraints(body.get('problemContext')) + f"""
+You are writing an end-of-session review report for the problem above. The conversation history is
 the user's full session — read it as evidence of how they actually worked, not just what they asked.
 
-This report is a RETROSPECTIVE. Unlike every other mode, you may show the complete optimal solution
-and explain it in full. The user has finished; withholding now would be unhelpful.
+This report is a RETROSPECTIVE. Unlike every other mode you may show the complete optimal solution —
+but only when they still need it. The user has finished; withholding is unhelpful, and so is handing
+back a solution they already wrote.
 
 Keep the whole report tight — a user reads this in a 400px panel, so short sentences and no padding.
 No preamble before the first heading and no summary after the last. Structure it with these headings
@@ -822,8 +834,15 @@ The 2 biggest sticking points, one line each, naming the underlying gap (a patte
 yet, an edge case habit, a complexity blind spot). Direct but not harsh.
 
 ## The solution
-The optimal approach in {language}, complete but lightly commented, with its time and space complexity.
-No walkthrough — the code and one line of explanation.
+Judge the code they ended with — optimal means optimal for the stated constraints, not in the
+abstract — then write EXACTLY ONE of these three, never more:
+- **Correct and optimal, or within a constant factor:** no code at all. One line naming their
+  approach with its time and space complexity, plus one line on anything that would tidy it.
+- **Right approach, wrong details** (off-by-one, wrong initial value, a missed edge case): no full
+  solution. List only the lines that change, at most 4, each as the line quoted verbatim from their
+  code then what it should become — `while left < right:` → `while left <= right:`. No line numbers.
+- **Wrong approach, or no real attempt:** the optimal approach in {language}, complete but lightly
+  commented, with its time and space complexity. The code and one line of explanation, no walkthrough.
 
 ## What to practice next
 2 specific named patterns or problem types. One line each. Not "keep practicing".
@@ -838,9 +857,10 @@ def build_chat_prompt(body):
     coaching_mode = body.get('coachingMode', 'learn')
     if coaching_mode == 'learn':
         coaching_rule = (
-            "Coaching mode: LEARN. Teach the concept and name the algorithm. Explain the idea in full — "
-            "but the user still writes the solution. If they ask you to write it for them, give them the "
-            "shape of it (a skeleton with blanks, or the one line they're stuck on) and let them finish."
+            "Coaching mode: LEARN. Name the algorithm and explain the idea completely but compactly — "
+            "complete means nothing important left out, NOT lengthy. The user still writes the solution: "
+            "if they ask you to write it, give them the shape of it (a skeleton with blanks, or the one "
+            "line they're stuck on) and let them finish."
         )
     elif coaching_mode == 'interview':
         coaching_rule = (
@@ -851,13 +871,11 @@ def build_chat_prompt(body):
             "Coaching mode: PRACTICE. Minimal nudge only — no concept explanations. If they ask something they should know, ask a probing question back. Max 1-2 sentences."
         )
 
-    coaching_rule += "\n" + CODE_POLICY[coaching_mode]
-
     return preamble + f"""
 {coaching_rule}
 
 Rules:
-- 1-2 sentences. Go longer only when the question genuinely cannot be answered in two.
+- 1-2 sentences, 3 at the absolute most and only for a genuinely multi-part question.
 - Recommend specific DS/algorithm variants, not generic advice.
 - {language} only for any code.
 - get_solution tool: use only when genuinely unsure about the optimal approach. Never reproduce the full solution.
